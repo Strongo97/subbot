@@ -115,4 +115,98 @@ class SpeechRecognitionConfigTest {
         org.junit.Assert.assertEquals(WhisperModelTier.BASE, WhisperModelTier.fromId("base"))
         org.junit.Assert.assertEquals(WhisperModelTier.TINY, WhisperModelTier.fromId("unknown"))
     }
+
+    @Test
+    fun testSenseVoiceConfig_validityRequiresModelAndTokensButNoDecoder() {
+        val senseVoice = SpeechRecognitionConfig(
+            modelType = SttModelType.SENSE_VOICE,
+            modelPath = "models/sense-voice-model.int8.onnx",
+            tokensPath = "models/sense-voice-tokens.txt",
+            language = "ja"
+        )
+        assertTrue("SenseVoice needs no encoder/decoder", senseVoice.isValid())
+        org.junit.Assert.assertEquals(
+            listOf("models/sense-voice-model.int8.onnx", "models/sense-voice-tokens.txt"),
+            senseVoice.requiredPaths
+        )
+
+        assertFalse(senseVoice.copy(modelPath = "").isValid())
+        assertFalse(senseVoice.copy(tokensPath = "").isValid())
+
+        // A Whisper config still requires a decoder, and ignores modelPath
+        val whisperNoDecoder = SpeechRecognitionConfig(
+            encoderPath = "whisper/tiny-encoder.int8.onnx",
+            tokensPath = "whisper/tiny-tokens.txt",
+            modelPath = "models/sense-voice-model.int8.onnx"
+        )
+        org.junit.Assert.assertEquals(SttModelType.WHISPER, whisperNoDecoder.modelType)
+        assertFalse(whisperNoDecoder.isValid())
+    }
+
+    @Test
+    fun testSenseVoiceConfig_filesExistChecksOnlyModelAndTokens() {
+        val dir = java.nio.file.Files.createTempDirectory("sv-config").toFile()
+        try {
+            val model = java.io.File(dir, "sense-voice-model.int8.onnx")
+            val tokens = java.io.File(dir, "sense-voice-tokens.txt")
+            val config = SpeechRecognitionConfig(
+                modelType = SttModelType.SENSE_VOICE,
+                modelPath = model.absolutePath,
+                tokensPath = tokens.absolutePath
+            )
+            assertFalse(config.filesExist())
+            model.writeText("m")
+            assertFalse(config.filesExist())
+            tokens.writeText("t")
+            assertTrue(config.filesExist())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testSenseVoiceConfig_featureDimLanguageAndRecognizerConfig() {
+        val config = SpeechRecognitionConfig(
+            modelType = SttModelType.SENSE_VOICE,
+            modelPath = "large/turbo/model.int8.onnx",
+            tokensPath = "tokens.txt",
+            language = "ko",
+            featureDim = 128,
+            numThreads = 2
+        )
+        org.junit.Assert.assertEquals("SenseVoice always uses 80-dim fbank", 80, config.effectiveFeatureDim)
+        org.junit.Assert.assertEquals("ko", config.senseVoiceLanguage)
+        org.junit.Assert.assertEquals("auto", config.copy(language = "vi").senseVoiceLanguage)
+        org.junit.Assert.assertEquals("yue", config.copy(language = "YUE").senseVoiceLanguage)
+
+        val recognizerConfig = config.toRecognizerConfig()
+        val sv = recognizerConfig.modelConfig.senseVoice
+        org.junit.Assert.assertEquals("large/turbo/model.int8.onnx", sv.model)
+        org.junit.Assert.assertEquals("ko", sv.language)
+        assertTrue(sv.useInverseTextNormalization)
+        org.junit.Assert.assertEquals("tokens.txt", recognizerConfig.modelConfig.tokens)
+        org.junit.Assert.assertEquals(2, recognizerConfig.modelConfig.numThreads)
+        org.junit.Assert.assertEquals("", recognizerConfig.modelConfig.whisper.encoder)
+        org.junit.Assert.assertEquals(80, recognizerConfig.featConfig.featureDim)
+
+        val whisper = SpeechRecognitionConfig(
+            encoderPath = "turbo-encoder.int8.onnx",
+            decoderPath = "turbo-decoder.int8.onnx",
+            tokensPath = "turbo-tokens.txt",
+            language = "ja",
+            task = "translate"
+        ).toRecognizerConfig()
+        org.junit.Assert.assertEquals("whisper", whisper.modelConfig.modelType)
+        org.junit.Assert.assertEquals("translate", whisper.modelConfig.whisper.task)
+        org.junit.Assert.assertEquals("", whisper.modelConfig.senseVoice.model)
+        org.junit.Assert.assertEquals(128, whisper.featConfig.featureDim)
+    }
+
+    @Test
+    fun testSttModelType_fromId() {
+        org.junit.Assert.assertEquals(SttModelType.SENSE_VOICE, SttModelType.fromId("sense_voice"))
+        org.junit.Assert.assertEquals(SttModelType.WHISPER, SttModelType.fromId("whisper"))
+        org.junit.Assert.assertEquals(SttModelType.WHISPER, SttModelType.fromId(null))
+        org.junit.Assert.assertEquals(SttModelType.WHISPER, SttModelType.fromId("bogus"))
+    }
 }

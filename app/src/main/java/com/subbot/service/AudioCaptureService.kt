@@ -48,6 +48,10 @@ class AudioCaptureService : Service() {
         const val EXTRA_FONT_SIZE = "extra_font_size"
         const val EXTRA_TASK = "extra_task"
         const val EXTRA_TRANSLATION_MODE = "extra_translation_mode"
+        /** [com.subbot.stt.SttModelType.id]; absent = Whisper. */
+        const val EXTRA_STT_MODEL_TYPE = "extra_stt_model_type"
+        /** Single model file for non-encoder/decoder models (SenseVoice). */
+        const val EXTRA_MODEL_PATH = "extra_model_path"
 
         // Global singleton access for overlay view to bind state
         var subtitleQueue: SubtitleQueue? = null
@@ -173,16 +177,22 @@ class AudioCaptureService : Service() {
                 "transcribe"
             }
 
-            // Initialize STT engine with 4 threads and optimal task (128 mels for Turbo/Large, 80 for Tiny/Base/Small)
-            val featureDim = if (encoderPath.contains("turbo", ignoreCase = true) || encoderPath.contains("large", ignoreCase = true)) 128 else 80
+            // Initialize STT engine with 4 threads and optimal task (128 mels for Turbo/Large, 80 for Tiny/Base/Small/SenseVoice)
+            val sttModelType = com.subbot.stt.SttModelType.fromId(intent.getStringExtra(EXTRA_STT_MODEL_TYPE))
+            val isSenseVoice = sttModelType == com.subbot.stt.SttModelType.SENSE_VOICE
+            val featureDim = if (!isSenseVoice && (encoderPath.contains("turbo", ignoreCase = true) || encoderPath.contains("large", ignoreCase = true))) 128 else 80
             val config = SpeechRecognitionConfig(
                 encoderPath = encoderPath,
                 decoderPath = decoderPath,
                 tokensPath = tokensPath,
                 language = sourceLang,
-                task = sttTask,
+                // SenseVoice has no translate task: always transcribe (MainActivity also sends EXTRA_TASK=transcribe
+                // so sttTask routes the output through ML Kit).
+                task = if (isSenseVoice) "transcribe" else sttTask,
                 numThreads = 4,
-                featureDim = featureDim
+                featureDim = featureDim,
+                modelType = sttModelType,
+                modelPath = intent.getStringExtra(EXTRA_MODEL_PATH) ?: ""
             )
 
             if (config.filesExist()) {
@@ -195,7 +205,7 @@ class AudioCaptureService : Service() {
                     subtitleQueue?.postSubtitle("STT Init Error", e.localizedMessage ?: "Failed to load speech model")
                 }
             } else {
-                android.util.Log.e("AudioCaptureService", "Whisper model files not found at $encoderPath")
+                android.util.Log.e("AudioCaptureService", "Speech model files not found: ${config.requiredPaths}")
                 subtitleQueue?.postSubtitle("Model Missing", "Please download the speech model in SubBot")
             }
 

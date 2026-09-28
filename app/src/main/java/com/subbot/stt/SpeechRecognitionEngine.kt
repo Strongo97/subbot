@@ -84,37 +84,16 @@ class SpeechRecognitionEngine(
     }
 
     /**
-     * Initializes the Sherpa-ONNX offline Whisper recognizer.
+     * Initializes the Sherpa-ONNX offline recognizer (Whisper or SenseVoice, per [SpeechRecognitionConfig.modelType]).
      */
     fun initialize() {
         if (!config.isValid()) {
             throw IllegalArgumentException("Invalid SpeechRecognitionConfig: required paths cannot be empty")
         }
 
-        val whisperConfig = OfflineWhisperModelConfig(
-            encoder = config.encoderPath,
-            decoder = config.decoderPath,
-            language = config.language,
-            task = config.task
-        )
-
-        val modelConfig = OfflineModelConfig(
-            whisper = whisperConfig,
-            tokens = config.tokensPath,
-            numThreads = config.numThreads,
-            modelType = "whisper"
-        )
-
-        val featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = config.effectiveFeatureDim)
-        val recognizerConfig = OfflineRecognizerConfig(
-            featConfig = featConfig,
-            modelConfig = modelConfig,
-            decodingMethod = "greedy_search"
-        )
-
         recognizer = OfflineRecognizer(
             assetManager = assetManager,
-            config = recognizerConfig
+            config = config.toRecognizerConfig(sampleRate = SAMPLE_RATE)
         )
     }
 

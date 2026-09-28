@@ -38,6 +38,7 @@ data class DashboardUiState(
     val isBaseModelDownloaded: Boolean = false,
     val isSmallModelDownloaded: Boolean = false,
     val isTurboModelDownloaded: Boolean = false,
+    val isSenseVoiceModelDownloaded: Boolean = false,
     val isSpeechModelDownloaded: Boolean = false,
     val isDownloadingSpeechModel: Boolean = false,
     val speechModelProgress: Int = 0,
@@ -50,6 +51,10 @@ data class DashboardUiState(
 
     val areTranslationModelsDownloaded: Boolean
         get() = isSourceModelDownloaded && isTargetModelDownloaded
+
+    /** SenseVoice has no translate task, so Whisper Direct translation is unavailable with it. */
+    val isWhisperDirectAvailable: Boolean
+        get() = selectedSpeechModelTier.modelType == com.subbot.stt.SttModelType.WHISPER
 
     val isReadyToStart: Boolean
         get() = areCorePermissionsGranted && areTranslationModelsDownloaded && isSpeechModelDownloaded
@@ -131,14 +136,47 @@ class DashboardViewModel(
     }
 
     fun selectSpeechModelTier(tier: WhisperModelTier) {
-        _uiState.update { it.copy(selectedSpeechModelTier = tier) }
+        val source = _uiState.value.sourceLanguage
+        if (!tier.supportsLanguage(source)) {
+            _uiState.update {
+                it.copy(statusMessage = "${tier.displayName} does not support ${languageName(source)}")
+            }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                selectedSpeechModelTier = tier,
+                // SenseVoice only transcribes; translation must go through ML Kit.
+                translationMode = if (tier.modelType == com.subbot.stt.SttModelType.WHISPER) it.translationMode else TranslationMode.GOOGLE_NER
+            )
+        }
         checkSpeechModel()
+        checkTranslationModelsDownloaded()
     }
 
     fun setTranslationMode(mode: TranslationMode) {
+        if (mode == TranslationMode.WHISPER_DIRECT && !_uiState.value.isWhisperDirectAvailable) return
         _uiState.update { it.copy(translationMode = mode) }
         checkTranslationModelsDownloaded()
     }
+
+    /** Largest downloaded Whisper tier, or TINY when none is downloaded. */
+    private fun fallbackWhisperTier(): WhisperModelTier {
+        val state = _uiState.value
+        return when {
+            state.isTurboModelDownloaded -> WhisperModelTier.TURBO
+            state.isSmallModelDownloaded -> WhisperModelTier.SMALL
+            state.isBaseModelDownloaded -> WhisperModelTier.BASE
+            else -> WhisperModelTier.TINY
+        }
+    }
+
+    /** Keeps the selected tier if it supports [sourceCode], otherwise falls back to a Whisper tier. */
+    private fun tierSupporting(sourceCode: String, selected: WhisperModelTier): WhisperModelTier =
+        if (selected.supportsLanguage(sourceCode)) selected else fallbackWhisperTier()
+
+    private fun languageName(code: String): String =
+        SUPPORTED_LANGUAGES.firstOrNull { it.code.equals(code, ignoreCase = true) }?.displayName ?: code
 
     fun checkSpeechModel() {
         val manager = modelManager ?: return
@@ -146,8 +184,10 @@ class DashboardViewModel(
         val baseDownloaded = manager.isTierAvailable(WhisperModelTier.BASE)
         val smallDownloaded = manager.isTierAvailable(WhisperModelTier.SMALL)
         val turboDownloaded = manager.isTierAvailable(WhisperModelTier.TURBO)
+        val senseVoiceDownloaded = manager.isTierAvailable(WhisperModelTier.SENSE_VOICE)
         val selectedTier = _uiState.value.selectedSpeechModelTier
-        val isSelectedDownloaded = manager.isTierAvailable(selectedTier)
+        val isSelectedDownloaded = manager.isTierAvailable(selectedTier) &&
+            selectedTier.supportsLanguage(_uiState.value.sourceLanguage)
 
         _uiState.update {
             it.copy(
@@ -155,6 +195,7 @@ class DashboardViewModel(
                 isBaseModelDownloaded = baseDownloaded,
                 isSmallModelDownloaded = smallDownloaded,
                 isTurboModelDownloaded = turboDownloaded,
+                isSenseVoiceModelDownloaded = senseVoiceDownloaded,
                 isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded || smallDownloaded || turboDownloaded)
             )
         }
@@ -215,7 +256,11 @@ class DashboardViewModel(
     }
 
     fun setSourceLanguage(code: String) {
-        val autoTier = if (code.equals("ja", ignoreCase = true)) {
+        val currentTier = _uiState.value.selectedSpeechModelTier
+        val autoTier = if (currentTier.modelType != com.subbot.stt.SttModelType.WHISPER) {
+            // Keep SenseVoice while it supports the new language; otherwise fall back to Whisper.
+            tierSupporting(code, currentTier)
+        } else if (code.equals("ja", ignoreCase = true)) {
             if (_uiState.value.isTurboModelDownloaded) WhisperModelTier.TURBO
             else if (_uiState.value.isSmallModelDownloaded) WhisperModelTier.SMALL
             else if (_uiState.value.isBaseModelDownloaded) WhisperModelTier.BASE
@@ -245,7 +290,8 @@ class DashboardViewModel(
         _uiState.update {
             it.copy(
                 sourceLanguage = oldTarget,
-                targetLanguage = oldSource
+                targetLanguage = oldSource,
+                selectedSpeechModelTier = tierSupporting(oldTarget, it.selectedSpeechModelTier)
             )
         }
         checkTranslationModelsDownloaded()
