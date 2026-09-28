@@ -48,7 +48,7 @@ class SpeechRecognitionEngineTest {
         assertEquals("はい", SpeechRecognitionEngine.cleanUtterance("はい。。。"))
         assertEquals("So", SpeechRecognitionEngine.cleanUtterance("So…"))
         assertEquals("I think", SpeechRecognitionEngine.cleanUtterance("I think --"))
-        assertEquals("I think. maybe", SpeechRecognitionEngine.cleanUtterance("I think... maybe"))
+        assertEquals("I think… maybe", SpeechRecognitionEngine.cleanUtterance("I think... maybe"))
         assertEquals("OK", SpeechRecognitionEngine.cleanUtterance("! OK"))
         assertEquals("", SpeechRecognitionEngine.cleanUtterance("[MUSIC]"))
         assertEquals("", SpeechRecognitionEngine.cleanUtterance("…"))

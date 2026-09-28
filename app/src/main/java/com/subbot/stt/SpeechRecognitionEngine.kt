@@ -150,7 +150,7 @@ class SpeechRecognitionEngine(
                 .replace(INLINE_TAG_REGEX, " ") // remove inline/trailing [MUSIC]-style tags
                 .replace(LEADING_JUNK_REGEX, "")
                 .replace(TRAILING_JUNK_REGEX, "")
-                .replace(INTERNAL_DOTS_REGEX, ".") // collapse internal "..." to a single period
+                .replace(INTERNAL_DOTS_REGEX, "…") // normalize internal "..." to "…" so it is not read as a sentence end
                 .trim()
         }
 
