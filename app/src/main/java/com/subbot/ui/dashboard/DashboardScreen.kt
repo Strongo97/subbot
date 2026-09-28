@@ -210,6 +210,7 @@ fun DashboardScreen(
                 isTinyDownloaded = state.isTinyModelDownloaded,
                 isBaseDownloaded = state.isBaseModelDownloaded,
                 isSmallDownloaded = state.isSmallModelDownloaded,
+                isTurboDownloaded = state.isTurboModelDownloaded,
                 translationMode = state.translationMode,
                 isSpeechModelDownloaded = state.isSpeechModelDownloaded,
                 isDownloadingSpeechModel = state.isDownloadingSpeechModel,
@@ -533,6 +534,7 @@ private fun LanguageControlCard(
     isTinyDownloaded: Boolean,
     isBaseDownloaded: Boolean,
     isSmallDownloaded: Boolean,
+    isTurboDownloaded: Boolean,
     translationMode: com.subbot.translation.TranslationMode,
     isSpeechModelDownloaded: Boolean,
     isDownloadingSpeechModel: Boolean,
@@ -653,6 +655,7 @@ private fun LanguageControlCard(
                         com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
                         com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
                         com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
+                        com.subbot.stt.WhisperModelTier.TURBO -> isTurboDownloaded
                     }
                     Surface(
                         onClick = { onSelectTier(tier) },
@@ -665,11 +668,11 @@ private fun LanguageControlCard(
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = tier.displayName.substringBefore(" ("),
+                                text = tier.displayName.removePrefix("Whisper ").substringBefore(" ("),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) CyanPrimaryLight else TextPrimary,
@@ -756,6 +759,7 @@ private fun LanguageControlCard(
                 com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
                 com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
                 com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
+                com.subbot.stt.WhisperModelTier.TURBO -> isTurboDownloaded
             }
             ModelStatusRow(
                 title = "Whisper Engine (${selectedTier.displayName})",

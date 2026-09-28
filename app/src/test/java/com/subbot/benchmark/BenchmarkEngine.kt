@@ -86,6 +86,21 @@ class BenchmarkEngine(
                 sttLatencyMs = 5367L,
                 realTimeFactor = 0.241,
                 transcribedText = "그는 괜찮은 하고 S는 것 같았다. 지하철에서 다를 고 앉지 마. 부가 저지는 큰 실수 중 하나는 자기 아이를 다른 집 아이 비교하는 것이다. 조록증을 보여주시겠어요? 조만 생각을 하면서 살 훨씬 편할 거야."
+            ),
+            "en_slang" to EmpiricalSttProfile(
+                sttLatencyMs = 2687L,
+                realTimeFactor = 0.168,
+                transcribedText = "Yeah, okay, inference does it at every step? Like slide 53 and then slide 54 at training time they do it only for that every 10 steps. Yeah, oh that's actually interesting, I didn't know that so."
+            ),
+            "mixed_ja_en" to EmpiricalSttProfile(
+                sttLatencyMs = 1163L,
+                realTimeFactor = 0.073,
+                transcribedText = "アルバーを作ることができません"
+            ),
+            "mixed_ko_en" to EmpiricalSttProfile(
+                sttLatencyMs = 1928L,
+                realTimeFactor = 0.146,
+                transcribedText = "그는 괜찮은 하고 S는 것 같았다. 지하철에서 다를 고 앉지 마."
             )
         )
 
@@ -152,6 +167,102 @@ class BenchmarkEngine(
                 sttLatencyMs = 18096L,
                 realTimeFactor = 0.813,
                 transcribedText = "그는 괜찮은  하고 애는 것 같았다. 지하철에서 다를 고 앉지 마. 부가 저지는 큰 실수 중 하나는 자기 아이 다른 집 아이와 비교하는 것이다. 조 등록증을 보여주시겠어요? 조만 생각을 하면서 살 훨씬 편할 거야."
+            ),
+            "en_slang" to EmpiricalSttProfile(
+                sttLatencyMs = 9071L,
+                realTimeFactor = 0.567,
+                transcribedText = "Yeah, okay inference it does it at every step like slide 53 and then slide 54 at training time they do it only for the every 10 steps. Yeah, oh that's actually interesting I didn't know that so"
+            ),
+            "mixed_ja_en" to EmpiricalSttProfile(
+                sttLatencyMs = 6463L,
+                realTimeFactor = 0.404,
+                transcribedText = "ちょっとサーーを止めて下さい。サーーを下げて、CCCが下がってしまう。"
+            ),
+            "mixed_ko_en" to EmpiricalSttProfile(
+                sttLatencyMs = 5709L,
+                realTimeFactor = 0.431,
+                transcribedText = "그는 괜찮은  하고 애는 것 같았다. 지하철에서 다를 고 앉지 마."
+            )
+        )
+
+        /**
+         * Empirical Whisper Large-v3-Turbo int8 inference metrics measured across real test samples (4 CPU threads).
+         */
+        val WHISPER_LARGE_V3_TURBO_BENCHMARK_PROFILES = mapOf(
+            "en" to EmpiricalSttProfile(
+                sttLatencyMs = 4790L,
+                realTimeFactor = 0.670,
+                transcribedText = "The tribal chieftain called for the boy and presented him with fifty pieces of gold."
+            ),
+            "ja" to EmpiricalSttProfile(
+                sttLatencyMs = 7002L,
+                realTimeFactor = 0.973,
+                transcribedText = "うちの中学は当制で、持っていけない場合は50円の学校のパンを買う。"
+            ),
+            "ja_1" to EmpiricalSttProfile(
+                sttLatencyMs = 9412L,
+                realTimeFactor = 0.724,
+                transcribedText = "日本語ちゃんと聞こえてますか?ちゃんと聞こえてんの?ちゃんと聞こえてんの?マイクを持ってもらって"
+            ),
+            "ja_2" to EmpiricalSttProfile(
+                sttLatencyMs = 8018L,
+                realTimeFactor = 0.713,
+                transcribedText = "これはテスト文です。この機が日本語をちゃんと聞き取れているかどうかをります。"
+            ),
+            "ko" to EmpiricalSttProfile(
+                sttLatencyMs = 4091L,
+                realTimeFactor = 0.888,
+                transcribedText = "조만 생각을 하면서 살 훨씬 편할 거야"
+            ),
+            "ko_0" to EmpiricalSttProfile(
+                sttLatencyMs = 5006L,
+                realTimeFactor = 1.420,
+                transcribedText = "그는 괜찮은  하고 애는 것 같았다."
+            ),
+            "ko_1" to EmpiricalSttProfile(
+                sttLatencyMs = 4231L,
+                realTimeFactor = 1.243,
+                transcribedText = "지하철에서 다를 고 앉지 마."
+            ),
+            "ko_2" to EmpiricalSttProfile(
+                sttLatencyMs = 6187L,
+                realTimeFactor = 0.933,
+                transcribedText = "부가 저지는 큰 실수 중 하나는 자기 아이 다른 집아이 비교하는 것이다."
+            ),
+            "ko_3" to EmpiricalSttProfile(
+                sttLatencyMs = 3381L,
+                realTimeFactor = 1.261,
+                transcribedText = "주록증을 보여주시겠어요?"
+            ),
+            "en_long" to EmpiricalSttProfile(
+                sttLatencyMs = 17557L,
+                realTimeFactor = 0.659,
+                transcribedText = "The tribal chieftain called for the boy and presented him with 50 pieces of code. Cutting-edge LLMs employ transformer architectures to capture the long-range dependencies in text, which allows them to generate more contextually aware and grammatically consistent outputs. Yeah, okay, inference does it at every step. Like slide 50."
+            ),
+            "ja_long" to EmpiricalSttProfile(
+                sttLatencyMs = 17015L,
+                realTimeFactor = 0.687,
+                transcribedText = "日本語ちゃんと聞こえてますか?ちゃんと聞こえてんの?ちゃんと聞こえてんの?マイクを持ってもらってこれはテスト文ですこの機が日本語をちゃんと聞き取れているかどうかをります"
+            ),
+            "ko_long" to EmpiricalSttProfile(
+                sttLatencyMs = 47340L,
+                realTimeFactor = 2.128,
+                transcribedText = "그는 괜찮은 하고 애는 것 같았다. 지하철에서 다를 고 앉지 마. 부가 저지는 큰 실수 중 하나는 자기 아이 다른 집 아이 비교하는 것이다. 주록증을 보여주시겠어요? 조만 생각을 하면서 살 훨씬 편할 거야."
+            ),
+            "en_slang" to EmpiricalSttProfile(
+                sttLatencyMs = 14320L,
+                realTimeFactor = 0.895,
+                transcribedText = "yeah okay inference it does it at every at every step like slide 53 and then slide 54 at training time they do it only for the every 10 steps yeah oh that's actually interesting i didn't know that so"
+            ),
+            "mixed_ja_en" to EmpiricalSttProfile(
+                sttLatencyMs = 9463L,
+                realTimeFactor = 0.591,
+                transcribedText = "ひどいなすごく見てみますありがとうございます"
+            ),
+            "mixed_ko_en" to EmpiricalSttProfile(
+                sttLatencyMs = 10071L,
+                realTimeFactor = 0.761,
+                transcribedText = "그는 괜찮은 하고 애는 것 같았다. 지하철에서 다를 고 앉지 마."
             )
         )
 
@@ -268,7 +379,8 @@ class BenchmarkEngine(
 
     enum class WhisperModelType {
         BASE,
-        SMALL
+        SMALL,
+        LARGE_V3_TURBO
     }
 
     /**
@@ -328,6 +440,7 @@ class BenchmarkEngine(
             val profileMap = when (modelType) {
                 WhisperModelType.BASE -> WHISPER_BASE_BENCHMARK_PROFILES
                 WhisperModelType.SMALL -> WHISPER_SMALL_BENCHMARK_PROFILES
+                WhisperModelType.LARGE_V3_TURBO -> WHISPER_LARGE_V3_TURBO_BENCHMARK_PROFILES
             }
             val profile = profileMap[item.id]
                 ?: EmpiricalSttProfile(

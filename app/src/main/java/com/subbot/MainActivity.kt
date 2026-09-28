@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
             val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper"))
             val effectiveTier = if (whisperManager.isTierAvailable(state.selectedSpeechModelTier)) {
                 state.selectedSpeechModelTier
+            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.TURBO)) {
+                com.subbot.stt.WhisperModelTier.TURBO
             } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.SMALL)) {
                 com.subbot.stt.WhisperModelTier.SMALL
             } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.BASE)) {

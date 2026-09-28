@@ -60,6 +60,16 @@ enum class WhisperModelTier(
         encoderFile = "small-encoder.int8.onnx",
         decoderFile = "small-decoder.int8.onnx",
         approxSizeMb = 374
+    ),
+    TURBO(
+        id = "turbo",
+        displayName = "Whisper Large-v3-Turbo (Ultimate Flagship)",
+        description = "809M params (~1036MB) • State-of-the-art accuracy • S23 Ultra / flagship recommended",
+        baseUrl = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/main",
+        tokenFile = "turbo-tokens.txt",
+        encoderFile = "turbo-encoder.int8.onnx",
+        decoderFile = "turbo-decoder.int8.onnx",
+        approxSizeMb = 1036
     );
 
     companion object {
@@ -133,7 +143,8 @@ class WhisperModelManager(val targetDir: File) {
     fun hasMultilingualModel(): Boolean {
         return isTierAvailable(WhisperModelTier.TINY) ||
                isTierAvailable(WhisperModelTier.BASE) ||
-               isTierAvailable(WhisperModelTier.SMALL)
+               isTierAvailable(WhisperModelTier.SMALL) ||
+               isTierAvailable(WhisperModelTier.TURBO)
     }
 
     /**
@@ -173,10 +184,12 @@ class WhisperModelManager(val targetDir: File) {
 
     /**
      * Returns the encoder, decoder, and tokens files for the given language.
-     * Prioritizes SMALL tier if available, then BASE tier, then TINY tier, or English-only model if applicable.
+     * Prioritizes TURBO tier if available, then SMALL tier, then BASE tier, then TINY tier.
      */
     fun getModelFiles(langCode: String = "en"): Triple<File, File, File> {
-        return if (isTierAvailable(WhisperModelTier.SMALL)) {
+        return if (isTierAvailable(WhisperModelTier.TURBO)) {
+            getModelFilesForTier(WhisperModelTier.TURBO)
+        } else if (isTierAvailable(WhisperModelTier.SMALL)) {
             getModelFilesForTier(WhisperModelTier.SMALL)
         } else if (isTierAvailable(WhisperModelTier.BASE)) {
             getModelFilesForTier(WhisperModelTier.BASE)

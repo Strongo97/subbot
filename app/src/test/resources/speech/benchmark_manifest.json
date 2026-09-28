@@ -130,6 +130,39 @@
     "transcript": "그는 괜찮은 척하려고 애쓰는 것 같았다. 지하철에서 다리를 벌리고 앉지 마라. 부모가 저지르는 큰 실수 중 하나는 자기 아이를 다른 집 아이와 비교하는 것이다. 주민등록증을 보여 주시겠어요? 조금만 생각을 하면서 살면 훨씬 편할 거야.",
     "referenceTranslationEn": "He seemed to be trying hard to pretend he was okay. Do not sit with your legs spread wide on the subway. One of the big mistakes parents make is comparing their child to other children. Could you please show your resident registration card? If you live while thinking just a little bit, it will be much more comfortable.",
     "referenceTranslationVi": "Anh ấy dường như đang cố gắng tỏ ra là mình ổn. Đừng ngồi dạng chân trên tàu điện ngầm. Một trong những sai lầm lớn của cha mẹ là so sánh con mình với con nhà người ta. Bạn có thể cho tôi xem thẻ chứng minh nhân dân được không? Nếu bạn suy nghĩ một chút khi sống thì sẽ thoải mái hơn nhiều."
+  },
+  {
+    "id": "en_slang",
+    "languageName": "English",
+    "flagEmoji": "🇺🇸",
+    "audioFile": "en_slang.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 16.00,
+    "transcript": "Yeah, okay inference it does it at every step like slide fifty three and then slide fifty four at training time they do it only for the every ten steps. Yeah, oh that's actually interesting, I didn't know that so.",
+    "referenceTranslationEn": "Yeah, okay inference it does it at every step like slide fifty three and then slide fifty four at training time they do it only for the every ten steps. Yeah, oh that's actually interesting, I didn't know that so.",
+    "referenceTranslationVi": "Vâng, được rồi suy luận nó thực hiện ở mỗi bước như trang 53 và sau đó là trang 54, vào thời điểm huấn luyện họ chỉ làm điều đó cứ sau mỗi mười bước. Vâng, điều đó thực sự thú vị, tôi không biết điều đó."
+  },
+  {
+    "id": "mixed_ja_en",
+    "languageName": "Japanese",
+    "flagEmoji": "🇯🇵",
+    "audioFile": "mixed_ja_en.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 16.00,
+    "transcript": "Just stop the server. Mhm, it froze and it wouldn't shut down the server. I pressed Control C, it doesn't shutdown. ひどいなすごく. Yeah, some kind of, I don't know, I mean. そんなにひどいかなんだろうそれ見てみますありがとうございます.",
+    "referenceTranslationEn": "Just stop the server. It froze and wouldn't shut down. I pressed Ctrl+C, it doesn't shut down. That's terrible. Yeah, I don't know. Is it really that bad? What is it? Let me check it, thank you very much.",
+    "referenceTranslationVi": "Chỉ cần dừng máy chủ lại. Nó bị đơ và không thể tắt máy chủ. Tôi đã nhấn Ctrl+C, nó không chịu tắt. Tệ thật đấy. Vâng, kiểu vậy, tôi không biết nữa. Tệ đến mức đó sao? Nó là cái gì thế? Để tôi xem thử, cảm ơn bạn rất nhiều."
+  },
+  {
+    "id": "mixed_ko_en",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "mixed_ko_en.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 13.23,
+    "transcript": "Yeah okay inference it does it at every step like slide fifty three. 그는 괜찮은 척하려고 애쓰는 것 같았다. 지하철에서 다리를 벌리고 앉지 마라.",
+    "referenceTranslationEn": "Yeah okay inference it does it at every step like slide fifty three. He seemed to be trying hard to pretend he was okay. Do not sit with your legs spread wide on the subway.",
+    "referenceTranslationVi": "Vâng được rồi suy luận nó thực hiện ở mỗi bước như trang 53. Anh ấy dường như đang cố gắng tỏ ra là mình ổn. Đừng ngồi dạng chân trên tàu điện ngầm."
   }
 ]
 

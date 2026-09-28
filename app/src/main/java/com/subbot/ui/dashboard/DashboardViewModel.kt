@@ -37,6 +37,7 @@ data class DashboardUiState(
     val isTinyModelDownloaded: Boolean = false,
     val isBaseModelDownloaded: Boolean = false,
     val isSmallModelDownloaded: Boolean = false,
+    val isTurboModelDownloaded: Boolean = false,
     val isSpeechModelDownloaded: Boolean = false,
     val isDownloadingSpeechModel: Boolean = false,
     val speechModelProgress: Int = 0,
@@ -144,6 +145,7 @@ class DashboardViewModel(
         val tinyDownloaded = manager.isTierAvailable(WhisperModelTier.TINY)
         val baseDownloaded = manager.isTierAvailable(WhisperModelTier.BASE)
         val smallDownloaded = manager.isTierAvailable(WhisperModelTier.SMALL)
+        val turboDownloaded = manager.isTierAvailable(WhisperModelTier.TURBO)
         val selectedTier = _uiState.value.selectedSpeechModelTier
         val isSelectedDownloaded = manager.isTierAvailable(selectedTier)
 
@@ -152,7 +154,8 @@ class DashboardViewModel(
                 isTinyModelDownloaded = tinyDownloaded,
                 isBaseModelDownloaded = baseDownloaded,
                 isSmallModelDownloaded = smallDownloaded,
-                isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded || smallDownloaded)
+                isTurboModelDownloaded = turboDownloaded,
+                isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded || smallDownloaded || turboDownloaded)
             )
         }
     }
@@ -213,9 +216,10 @@ class DashboardViewModel(
 
     fun setSourceLanguage(code: String) {
         val autoTier = if (code.equals("ja", ignoreCase = true)) {
-            if (_uiState.value.isSmallModelDownloaded) WhisperModelTier.SMALL
+            if (_uiState.value.isTurboModelDownloaded) WhisperModelTier.TURBO
+            else if (_uiState.value.isSmallModelDownloaded) WhisperModelTier.SMALL
             else if (_uiState.value.isBaseModelDownloaded) WhisperModelTier.BASE
-            else if (_uiState.value.selectedSpeechModelTier == WhisperModelTier.TINY) WhisperModelTier.BASE
+            else if (_uiState.value.selectedSpeechModelTier == WhisperModelTier.TINY) WhisperModelTier.SMALL
             else _uiState.value.selectedSpeechModelTier
         } else {
             _uiState.value.selectedSpeechModelTier
