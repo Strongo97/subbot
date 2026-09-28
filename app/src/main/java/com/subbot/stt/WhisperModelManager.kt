@@ -29,7 +29,8 @@ enum class WhisperModelTier(
     val tokenFile: String,
     val encoderFile: String,
     val decoderFile: String,
-    val approxSizeMb: Int
+    val approxSizeMb: Int,
+    val featureDim: Int = 80
 ) {
     TINY(
         id = "tiny",
@@ -39,7 +40,8 @@ enum class WhisperModelTier(
         tokenFile = "tiny-tokens.txt",
         encoderFile = "tiny-encoder.int8.onnx",
         decoderFile = "tiny-decoder.int8.onnx",
-        approxSizeMb = 104
+        approxSizeMb = 104,
+        featureDim = 80
     ),
     BASE(
         id = "base",
@@ -49,7 +51,8 @@ enum class WhisperModelTier(
         tokenFile = "base-tokens.txt",
         encoderFile = "base-encoder.int8.onnx",
         decoderFile = "base-decoder.int8.onnx",
-        approxSizeMb = 160
+        approxSizeMb = 160,
+        featureDim = 80
     ),
     SMALL(
         id = "small",
@@ -59,7 +62,8 @@ enum class WhisperModelTier(
         tokenFile = "small-tokens.txt",
         encoderFile = "small-encoder.int8.onnx",
         decoderFile = "small-decoder.int8.onnx",
-        approxSizeMb = 374
+        approxSizeMb = 374,
+        featureDim = 80
     ),
     TURBO(
         id = "turbo",
@@ -69,7 +73,8 @@ enum class WhisperModelTier(
         tokenFile = "turbo-tokens.txt",
         encoderFile = "turbo-encoder.int8.onnx",
         decoderFile = "turbo-decoder.int8.onnx",
-        approxSizeMb = 1036
+        approxSizeMb = 1036,
+        featureDim = 128
     );
 
     companion object {

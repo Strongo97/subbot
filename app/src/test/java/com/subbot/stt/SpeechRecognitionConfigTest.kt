@@ -26,6 +26,43 @@ class SpeechRecognitionConfigTest {
     }
 
     @Test
+    fun testFeatureDim_detectionAndDefaults() {
+        val tinyConfig = SpeechRecognitionConfig(
+            encoderPath = "whisper/tiny-encoder.int8.onnx",
+            decoderPath = "whisper/tiny-decoder.int8.onnx",
+            tokensPath = "whisper/tiny-tokens.txt"
+        )
+        org.junit.Assert.assertEquals(80, tinyConfig.effectiveFeatureDim)
+
+        val baseConfig = SpeechRecognitionConfig(
+            encoderPath = "whisper/base-encoder.int8.onnx",
+            decoderPath = "whisper/base-decoder.int8.onnx",
+            tokensPath = "whisper/base-tokens.txt"
+        )
+        org.junit.Assert.assertEquals(80, baseConfig.effectiveFeatureDim)
+
+        val turboConfig = SpeechRecognitionConfig(
+            encoderPath = "whisper/turbo-encoder.int8.onnx",
+            decoderPath = "whisper/turbo-decoder.int8.onnx",
+            tokensPath = "whisper/turbo-tokens.txt"
+        )
+        org.junit.Assert.assertEquals(128, turboConfig.effectiveFeatureDim)
+
+        val explicitConfig = SpeechRecognitionConfig(
+            encoderPath = "whisper/custom.onnx",
+            decoderPath = "whisper/custom.onnx",
+            tokensPath = "whisper/custom.txt",
+            featureDim = 128
+        )
+        org.junit.Assert.assertEquals(128, explicitConfig.effectiveFeatureDim)
+
+        org.junit.Assert.assertEquals(80, WhisperModelTier.TINY.featureDim)
+        org.junit.Assert.assertEquals(80, WhisperModelTier.BASE.featureDim)
+        org.junit.Assert.assertEquals(80, WhisperModelTier.SMALL.featureDim)
+        org.junit.Assert.assertEquals(128, WhisperModelTier.TURBO.featureDim)
+    }
+
+    @Test
     fun testCleanUtterance_stripsEllipsesAndArtifacts() {
         org.junit.Assert.assertEquals("hello world", SpeechRecognitionEngine.cleanUtterance("...hello world..."))
         org.junit.Assert.assertEquals("hello world", SpeechRecognitionEngine.cleanUtterance("…hello world…"))

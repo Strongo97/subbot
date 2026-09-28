@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.isActive
@@ -66,7 +67,7 @@ class AudioCaptureManager {
             audioRecord = record
         }
 
-        val audioChannel = Channel<FloatArray>(capacity = 64)
+        val audioChannel = Channel<FloatArray>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
         channel = audioChannel
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {

@@ -105,7 +105,7 @@ class SpeechRecognitionEngine(
             modelType = "whisper"
         )
 
-        val featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = 80)
+        val featConfig = FeatureConfig(sampleRate = SAMPLE_RATE, featureDim = config.effectiveFeatureDim)
         val recognizerConfig = OfflineRecognizerConfig(
             featConfig = featConfig,
             modelConfig = modelConfig,

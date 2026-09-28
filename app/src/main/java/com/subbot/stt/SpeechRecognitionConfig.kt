@@ -9,8 +9,18 @@ data class SpeechRecognitionConfig(
     val tokensPath: String = "",
     val language: String = "en",
     val task: String = "transcribe",
-    val numThreads: Int = 4
+    val numThreads: Int = 4,
+    val featureDim: Int = 80
 ) {
+    val effectiveFeatureDim: Int
+        get() = if (featureDim != 80) {
+            featureDim
+        } else if (encoderPath.contains("turbo", ignoreCase = true) || encoderPath.contains("large", ignoreCase = true)) {
+            128
+        } else {
+            80
+        }
+
     fun isValid(): Boolean {
         return encoderPath.isNotBlank() &&
                decoderPath.isNotBlank() &&

@@ -173,14 +173,16 @@ class AudioCaptureService : Service() {
                 "transcribe"
             }
 
-            // Initialize STT engine with 4 threads and optimal task
+            // Initialize STT engine with 4 threads and optimal task (128 mels for Turbo/Large, 80 for Tiny/Base/Small)
+            val featureDim = if (encoderPath.contains("turbo", ignoreCase = true) || encoderPath.contains("large", ignoreCase = true)) 128 else 80
             val config = SpeechRecognitionConfig(
                 encoderPath = encoderPath,
                 decoderPath = decoderPath,
                 tokensPath = tokensPath,
                 language = sourceLang,
                 task = sttTask,
-                numThreads = 4
+                numThreads = 4,
+                featureDim = featureDim
             )
 
             if (config.filesExist()) {
