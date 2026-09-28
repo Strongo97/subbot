@@ -48,6 +48,13 @@ class AudioCaptureService : Service() {
         // Global singleton access for overlay view to bind state
         var subtitleQueue: SubtitleQueue? = null
             private set
+
+        private val _isServiceActive = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val isServiceActive: kotlinx.coroutines.flow.StateFlow<Boolean> = _isServiceActive
+
+        fun setServiceActive(active: Boolean) {
+            _isServiceActive.value = active
+        }
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
@@ -67,6 +74,7 @@ class AudioCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        setServiceActive(true)
         NotificationHelper.createNotificationChannel(this)
         val queue = SubtitleQueue(serviceScope)
         subtitleQueue = queue
@@ -200,6 +208,7 @@ class AudioCaptureService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        setServiceActive(false)
         pipelineJob?.cancel()
         serviceScope.cancel()
 

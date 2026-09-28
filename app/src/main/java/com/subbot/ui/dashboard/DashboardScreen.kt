@@ -230,7 +230,7 @@ fun DashboardScreen(
                         onStartService()
                     }
                 },
-                enabled = state.areCorePermissionsGranted,
+                enabled = if (state.isServiceRunning) true else state.isReadyToStart,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

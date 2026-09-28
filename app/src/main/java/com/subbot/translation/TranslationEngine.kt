@@ -20,12 +20,18 @@ sealed class DownloadStatus {
     data class Failed(val error: Throwable) : DownloadStatus()
 }
 
+interface ITranslationEngine {
+    suspend fun isModelDownloaded(langCode: String): Boolean
+    fun downloadModel(langCode: String, requireWifi: Boolean = false): Flow<DownloadStatus>
+    suspend fun translate(text: String, sourceLang: String, targetLang: String): String
+}
+
 /**
  * On-device neural translation engine backed by Google ML Kit.
  */
 class TranslationEngine(
     private val cache: TranslationCache = TranslationCache()
-) {
+) : ITranslationEngine {
     private val modelManager = RemoteModelManager.getInstance()
     private var activeTranslator: Translator? = null
     private var currentSourceLang: String? = null
@@ -34,7 +40,7 @@ class TranslationEngine(
     /**
      * Checks if the offline model for a given language code (BCP-47 / ISO 639-1) is downloaded.
      */
-    suspend fun isModelDownloaded(langCode: String): Boolean {
+    override suspend fun isModelDownloaded(langCode: String): Boolean {
         val model = TranslateRemoteModel.Builder(langCode).build()
         return try {
             val downloadedModels = modelManager.getDownloadedModels(TranslateRemoteModel::class.java).await()
@@ -47,7 +53,7 @@ class TranslationEngine(
     /**
      * Downloads the offline translation model for the specified language.
      */
-    fun downloadModel(langCode: String, requireWifi: Boolean = false): Flow<DownloadStatus> = flow {
+    override fun downloadModel(langCode: String, requireWifi: Boolean): Flow<DownloadStatus> = flow {
         emit(DownloadStatus.Downloading)
         val model = TranslateRemoteModel.Builder(langCode).build()
         val conditionsBuilder = DownloadConditions.Builder()
@@ -68,7 +74,7 @@ class TranslationEngine(
      * Translates input text from source language to target language.
      * Hits cache first; if missing, runs ML Kit on-device inference and caches result.
      */
-    suspend fun translate(text: String, sourceLang: String, targetLang: String): String {
+    override suspend fun translate(text: String, sourceLang: String, targetLang: String): String {
         if (text.isBlank() || sourceLang.equals(targetLang, ignoreCase = true)) {
             return text
         }

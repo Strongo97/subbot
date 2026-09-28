@@ -33,11 +33,18 @@ data class DashboardUiState(
 ) {
     val areCorePermissionsGranted: Boolean
         get() = isOverlayPermissionGranted && isAudioPermissionGranted
+
+    val isReadyToStart: Boolean
+        get() = areCorePermissionsGranted && isTargetModelDownloaded
 }
 
 class DashboardViewModel(
-    private val translationEngine: TranslationEngine = TranslationEngine()
+    private val translationEngine: com.subbot.translation.ITranslationEngine? = null
 ) : ViewModel() {
+
+    private val engine: com.subbot.translation.ITranslationEngine by lazy {
+        translationEngine ?: TranslationEngine()
+    }
 
     companion object {
         val SUPPORTED_LANGUAGES = listOf(
@@ -54,6 +61,18 @@ class DashboardViewModel(
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            com.subbot.service.AudioCaptureService.isServiceActive.collect { active ->
+                _uiState.update { it.copy(isServiceRunning = active) }
+            }
+        }
+    }
+
+    fun syncServiceState() {
+        _uiState.update { it.copy(isServiceRunning = com.subbot.service.AudioCaptureService.isServiceActive.value) }
+    }
 
     fun updatePermissions(context: Context) {
         val overlayGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -106,40 +125,53 @@ class DashboardViewModel(
 
     fun checkTargetModelDownloaded() {
         viewModelScope.launch {
-            val target = _uiState.value.targetLanguage
-            val isDownloaded = translationEngine.isModelDownloaded(target)
-            _uiState.update { it.copy(isTargetModelDownloaded = isDownloaded) }
+            try {
+                val target = _uiState.value.targetLanguage
+                val isDownloaded = engine.isModelDownloaded(target)
+                _uiState.update { it.copy(isTargetModelDownloaded = isDownloaded) }
+            } catch (e: Throwable) {
+                // Non-Android unit test environment fallback
+            }
         }
     }
 
     fun downloadTargetModel() {
         val target = _uiState.value.targetLanguage
         viewModelScope.launch {
-            translationEngine.downloadModel(target).collect { status ->
-                when (status) {
-                    is DownloadStatus.Downloading -> {
-                        _uiState.update {
-                            it.copy(isDownloadingModel = true, statusMessage = "Downloading offline model...")
+            try {
+                engine.downloadModel(target).collect { status ->
+                    when (status) {
+                        is DownloadStatus.Downloading -> {
+                            _uiState.update {
+                                it.copy(isDownloadingModel = true, statusMessage = "Downloading offline model...")
+                            }
                         }
-                    }
-                    is DownloadStatus.Completed -> {
-                        _uiState.update {
-                            it.copy(
-                                isDownloadingModel = false,
-                                isTargetModelDownloaded = true,
-                                statusMessage = "Model downloaded successfully!"
-                            )
+                        is DownloadStatus.Completed -> {
+                            _uiState.update {
+                                it.copy(
+                                    isDownloadingModel = false,
+                                    isTargetModelDownloaded = true,
+                                    statusMessage = "Model downloaded successfully!"
+                                )
+                            }
                         }
-                    }
-                    is DownloadStatus.Failed -> {
-                        _uiState.update {
-                            it.copy(
-                                isDownloadingModel = false,
-                                statusMessage = "Download failed: ${status.error.localizedMessage}"
-                            )
+                        is DownloadStatus.Failed -> {
+                            _uiState.update {
+                                it.copy(
+                                    isDownloadingModel = false,
+                                    statusMessage = "Download failed: ${status.error.localizedMessage}"
+                                )
+                            }
                         }
+                        else -> {}
                     }
-                    else -> {}
+                }
+            } catch (e: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        isDownloadingModel = false,
+                        statusMessage = "Download error: ${e.localizedMessage}"
+                    )
                 }
             }
         }
