@@ -17,6 +17,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Manages capturing internal device audio using Android 10+ AudioPlaybackCapture API.
@@ -28,7 +29,11 @@ class AudioCaptureManager {
         const val CHANNEL_MASK = AudioFormat.CHANNEL_IN_MONO
         const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         const val SAMPLES_PER_CHUNK = 1600 // 100ms at 16kHz
+        const val CHANNEL_CAPACITY_CHUNKS = 64 // ~6.4s of audio
+        private const val DROP_LOG_INTERVAL = 10 // log at most once per ~1s of dropped audio
     }
+
+    private val droppedChunks = AtomicInteger(0)
 
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
@@ -67,7 +72,23 @@ class AudioCaptureManager {
             audioRecord = record
         }
 
-        val audioChannel = Channel<FloatArray>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+        // The STT pipeline's segmenter stage only runs the (cheap) speech detector, so it should
+        // always keep up; overflow here means the device is badly overloaded. Drop the oldest
+        // audio rather than stalling AudioRecord, and make it visible in logs.
+        droppedChunks.set(0)
+        val audioChannel = Channel<FloatArray>(
+            capacity = CHANNEL_CAPACITY_CHUNKS,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+            onUndeliveredElement = {
+                val n = droppedChunks.incrementAndGet()
+                if (isRecording && n % DROP_LOG_INTERVAL == 1) {
+                    android.util.Log.w(
+                        "AudioCaptureManager",
+                        "Audio consumer behind: dropped $n chunk(s) (${n * SAMPLES_PER_CHUNK / SAMPLE_RATE.toFloat()}s) so far"
+                    )
+                }
+            }
+        )
         channel = audioChannel
 
         if (record.state != AudioRecord.STATE_INITIALIZED) {

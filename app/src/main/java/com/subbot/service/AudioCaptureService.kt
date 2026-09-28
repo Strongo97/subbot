@@ -15,6 +15,7 @@ import android.os.Looper
 import com.subbot.audio.AudioCaptureManager
 import com.subbot.stt.SpeechRecognitionConfig
 import com.subbot.stt.SpeechRecognitionEngine
+import com.subbot.stt.WhisperModelManager
 import com.subbot.translation.SentenceAggregator
 import com.subbot.translation.TranslationEngine
 import com.subbot.ui.overlay.SubtitleOverlayManager
@@ -210,7 +211,7 @@ class AudioCaptureService : Service() {
 
             if (config.filesExist()) {
                 try {
-                    val engine = SpeechRecognitionEngine(config, assetManager = null)
+                    val engine = SpeechRecognitionEngine(config, assetManager = null, vadModelPath = resolveVadModelPath())
                     engine.initialize()
                     speechEngine = engine
                 } catch (e: Throwable) {
@@ -341,6 +342,23 @@ class AudioCaptureService : Service() {
             original = originalText,
             translated = translatedText
         )
+    }
+
+    /**
+     * Returns the Silero VAD model path if downloaded. If missing, starts a background download
+     * (so the next session can use it) and returns null: this session falls back to energy gating.
+     */
+    private fun resolveVadModelPath(): String? {
+        val manager = WhisperModelManager(java.io.File(filesDir, "models/whisper"))
+        manager.vadModelPath?.let { return it }
+        serviceScope.launch(Dispatchers.IO) {
+            if (manager.downloadVadModelBlocking()) {
+                android.util.Log.i("AudioCaptureService", "Silero VAD model downloaded; used from next session")
+            } else {
+                android.util.Log.w("AudioCaptureService", "Silero VAD model download failed; using energy gating")
+            }
+        }
+        return null
     }
 
     private fun handlePause() {
