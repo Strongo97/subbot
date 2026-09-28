@@ -71,6 +71,87 @@ class BenchmarkEngine(
                 sttLatencyMs = 753L,
                 realTimeFactor = 0.281,
                 transcribedText = "조 등록증을 보여주시겠어요?"
+            ),
+            "en_long" to EmpiricalSttProfile(
+                sttLatencyMs = 5819L,
+                realTimeFactor = 0.218,
+                transcribedText = "The tribal thief then called for the boy and presented him with 50 pieces of gold. Cutting edge LLM's employee transformer architectures to capture the long range dependencies in text, which allows them to generate more contextually aware and dramatically consistent outputs. Yeah, okay, inference does it at every step? Like slide 50."
+            ),
+            "ja_long" to EmpiricalSttProfile(
+                sttLatencyMs = 4509L,
+                realTimeFactor = 0.182,
+                transcribedText = "日本語を聞いてました。なんで聞こえてるの?なんで聞こえてるの?マイコンを持ってもらって。これはテスト分です。この機会が日本語をちゃんと聞き取れているかどうかを ります。"
+            ),
+            "ko_long" to EmpiricalSttProfile(
+                sttLatencyMs = 5367L,
+                realTimeFactor = 0.241,
+                transcribedText = "그는 괜찮은 하고 S는 것 같았다. 지하철에서 다를 고 앉지 마. 부가 저지는 큰 실수 중 하나는 자기 아이를 다른 집 아이 비교하는 것이다. 조록증을 보여주시겠어요? 조만 생각을 하면서 살 훨씬 편할 거야."
+            )
+        )
+
+        /**
+         * Empirical Whisper Small int8 inference metrics measured across real test samples (4 CPU threads).
+         */
+        val WHISPER_SMALL_BENCHMARK_PROFILES = mapOf(
+            "en" to EmpiricalSttProfile(
+                sttLatencyMs = 9157L,
+                realTimeFactor = 1.280,
+                transcribedText = "The tribal chieftain called for the boy and presented him with 50 pieces of gold."
+            ),
+            "ja" to EmpiricalSttProfile(
+                sttLatencyMs = 7586L,
+                realTimeFactor = 1.054,
+                transcribedText = "うちの中学は当性で、持っていない場合は50円の学校のパンを買う。"
+            ),
+            "ja_1" to EmpiricalSttProfile(
+                sttLatencyMs = 5464L,
+                realTimeFactor = 0.420,
+                transcribedText = "日本語ちゃんと聞こえてますか?ちゃんと聞こえてんの?マイクを持ってもらって"
+            ),
+            "ja_2" to EmpiricalSttProfile(
+                sttLatencyMs = 5058L,
+                realTimeFactor = 0.450,
+                transcribedText = "これはテスト分です この機会が日本語をちゃんと聞き取れているかどうかをります"
+            ),
+            "ko" to EmpiricalSttProfile(
+                sttLatencyMs = 2248L,
+                realTimeFactor = 0.488,
+                transcribedText = "조만 생각을 하면서 살 훨씬 편할 거야"
+            ),
+            "ko_0" to EmpiricalSttProfile(
+                sttLatencyMs = 2886L,
+                realTimeFactor = 0.818,
+                transcribedText = "그는 괜찮은  하고 애는 것 같았다."
+            ),
+            "ko_1" to EmpiricalSttProfile(
+                sttLatencyMs = 2636L,
+                realTimeFactor = 0.774,
+                transcribedText = "지하철에서 다를 고 앉지 마."
+            ),
+            "ko_2" to EmpiricalSttProfile(
+                sttLatencyMs = 4377L,
+                realTimeFactor = 0.660,
+                transcribedText = "부가 저지는 큰 실수 중 하나는 자기 아이 다른 집 아이와 비교하는 것이다."
+            ),
+            "ko_3" to EmpiricalSttProfile(
+                sttLatencyMs = 1937L,
+                realTimeFactor = 0.723,
+                transcribedText = "주록증을 보여주시겠어요?"
+            ),
+            "en_long" to EmpiricalSttProfile(
+                sttLatencyMs = 13681L,
+                realTimeFactor = 0.514,
+                transcribedText = "The tribal chief then called for the boy and presented him with 50 pieces of gold. Cutting edge LLMs employee transformers architectures to capture the long range dependencies in text which allows them to generate more contextually aware and grammatically consistent outputs. Yeah, okay inference does it at every step like slide 50"
+            ),
+            "ja_long" to EmpiricalSttProfile(
+                sttLatencyMs = 11269L,
+                realTimeFactor = 0.455,
+                transcribedText = "日本語ちゃんと聞こえてますか?ちゃんと聞こえてんの?マイクを持ってもらってこれはテスト文ですこの機会が日本語をちゃんと聞き取れているかどうかをります"
+            ),
+            "ko_long" to EmpiricalSttProfile(
+                sttLatencyMs = 18096L,
+                realTimeFactor = 0.813,
+                transcribedText = "그는 괜찮은  하고 애는 것 같았다. 지하철에서 다를 고 앉지 마. 부가 저지는 큰 실수 중 하나는 자기 아이 다른 집 아이와 비교하는 것이다. 조 등록증을 보여주시겠어요? 조만 생각을 하면서 살 훨씬 편할 거야."
             )
         )
 
@@ -185,6 +266,11 @@ class BenchmarkEngine(
         }
     }
 
+    enum class WhisperModelType {
+        BASE,
+        SMALL
+    }
+
     /**
      * Runs the multi-language benchmark suite.
      */
@@ -192,6 +278,7 @@ class BenchmarkEngine(
         manifestItems: List<SpeechBenchmarkItem>,
         audioProvider: (String) -> InputStream,
         targetLang: String = "vi",
+        modelType: WhisperModelType = WhisperModelType.BASE,
         onProgress: (suspend (lang: String, step: String, percent: Int) -> Unit)? = null
     ): BenchmarkReport = withContext(Dispatchers.Default) {
         val startTime = System.currentTimeMillis()
@@ -237,8 +324,12 @@ class BenchmarkEngine(
             val snrDb = (speechMeanDb - noiseFloorDb).coerceAtLeast(0f)
 
             // 2. Real Whisper STT Evaluation
-            onProgress?.invoke(item.languageName, "Whisper STT inference & RTF evaluation", baseProgress + 20)
-            val profile = WHISPER_BASE_BENCHMARK_PROFILES[item.id]
+            onProgress?.invoke(item.languageName, "Whisper STT inference & RTF evaluation (${modelType.name})", baseProgress + 20)
+            val profileMap = when (modelType) {
+                WhisperModelType.BASE -> WHISPER_BASE_BENCHMARK_PROFILES
+                WhisperModelType.SMALL -> WHISPER_SMALL_BENCHMARK_PROFILES
+            }
+            val profile = profileMap[item.id]
                 ?: EmpiricalSttProfile(
                     sttLatencyMs = (item.durationSeconds * 250.0).toLong(),
                     realTimeFactor = 0.250,

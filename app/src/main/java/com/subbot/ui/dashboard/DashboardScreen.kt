@@ -1241,7 +1241,13 @@ private fun LanguageDropdown(
             value = selectedOption.displayName,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label, fontSize = 11.sp) },
+            singleLine = true,
+            maxLines = 1,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            ),
+            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = DarkSurfaceElevated,

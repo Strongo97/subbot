@@ -97,5 +97,39 @@
     "transcript": "주민등록증을 보여 주시겠어요?",
     "referenceTranslationEn": "Could you please show your resident registration card?",
     "referenceTranslationVi": "Bạn có thể cho tôi xem thẻ chứng minh nhân dân được không?"
+  },
+  {
+    "id": "en_long",
+    "languageName": "English",
+    "flagEmoji": "🇺🇸",
+    "audioFile": "en_long.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 26.64,
+    "transcript": "The tribal chief then called for the boy and presented him with fifty pieces of gold. Cutting edge LLMs employ transformer architectures to capture the long range dependencies in text, which allows them to generate more contextually aware and grammatically consistent outputs. Yeah, okay inference it does it at every step like slide fifty three and then slide fifty four.",
+    "referenceTranslationEn": "The tribal chief then called for the boy and presented him with fifty pieces of gold. Cutting edge LLMs employ transformer architectures to capture the long range dependencies in text, which allows them to generate more contextually aware and grammatically consistent outputs. Yeah, okay inference it does it at every step like slide fifty three and then slide fifty four.",
+    "referenceTranslationVi": "Tù trưởng bộ lạc sau đó gọi cậu bé lại và tặng cậu năm mươi đồng tiền vàng. Các LLM tiên tiến sử dụng kiến trúc transformer để nắm bắt các phụ thuộc tầm xa trong văn bản, cho phép chúng tạo ra các kết quả nhất quán về mặt ngữ pháp và nhận biết ngữ cảnh tốt hơn. Vâng, được rồi, suy luận diễn ra ở mọi bước như trang trình chiếu 53 và sau đó là trang trình chiếu 54."
+  },
+  {
+    "id": "ja_long",
+    "languageName": "Japanese",
+    "flagEmoji": "🇯🇵",
+    "audioFile": "ja_long.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 24.75,
+    "transcript": "日本語ちゃんと聞き取れてますかちゃんと聞こえてんのちゃんと聞こえてるのじゃあマイクを持ってもらってこれはテスト文ですこの機械が日本語をちゃんと聞き取れているかどうかを計ります",
+    "referenceTranslationEn": "Can you hear Japanese properly? Can you hear me well? Can you hear it? Well then, please hold the microphone. This is a test sentence. It measures whether this machine can properly recognize Japanese.",
+    "referenceTranslationVi": "Bạn có nghe rõ tiếng Nhật không? Có nghe rõ không? Nghe được chứ? Vậy thì hãy cầm micro lên. Đây là câu thử nghiệm. Nó đo lường liệu cỗ máy này có nhận dạng tốt tiếng Nhật hay không."
+  },
+  {
+    "id": "ko_long",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "ko_long.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 22.25,
+    "transcript": "그는 괜찮은 척하려고 애쓰는 것 같았다. 지하철에서 다리를 벌리고 앉지 마라. 부모가 저지르는 큰 실수 중 하나는 자기 아이를 다른 집 아이와 비교하는 것이다. 주민등록증을 보여 주시겠어요? 조금만 생각을 하면서 살면 훨씬 편할 거야.",
+    "referenceTranslationEn": "He seemed to be trying hard to pretend he was okay. Do not sit with your legs spread wide on the subway. One of the big mistakes parents make is comparing their child to other children. Could you please show your resident registration card? If you live while thinking just a little bit, it will be much more comfortable.",
+    "referenceTranslationVi": "Anh ấy dường như đang cố gắng tỏ ra là mình ổn. Đừng ngồi dạng chân trên tàu điện ngầm. Một trong những sai lầm lớn của cha mẹ là so sánh con mình với con nhà người ta. Bạn có thể cho tôi xem thẻ chứng minh nhân dân được không? Nếu bạn suy nghĩ một chút khi sống thì sẽ thoải mái hơn nhiều."
   }
 ]
+
