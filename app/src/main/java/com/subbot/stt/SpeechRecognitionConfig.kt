@@ -9,7 +9,7 @@ data class SpeechRecognitionConfig(
     val tokensPath: String = "",
     val language: String = "en",
     val task: String = "transcribe",
-    val numThreads: Int = 2
+    val numThreads: Int = 4
 ) {
     fun isValid(): Boolean {
         return encoderPath.isNotBlank() &&

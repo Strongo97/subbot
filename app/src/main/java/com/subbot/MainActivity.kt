@@ -39,8 +39,15 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val state = viewModel.uiState.value
-            val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper-tiny"))
-            val (encoderFile, decoderFile, tokensFile) = whisperManager.getModelFiles(state.sourceLanguage)
+            val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper"))
+            val effectiveTier = if (whisperManager.isTierAvailable(state.selectedSpeechModelTier)) {
+                state.selectedSpeechModelTier
+            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.BASE)) {
+                com.subbot.stt.WhisperModelTier.BASE
+            } else {
+                com.subbot.stt.WhisperModelTier.TINY
+            }
+            val (encoderFile, decoderFile, tokensFile) = whisperManager.getModelFilesForTier(effectiveTier)
 
             val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
                 action = AudioCaptureService.ACTION_START

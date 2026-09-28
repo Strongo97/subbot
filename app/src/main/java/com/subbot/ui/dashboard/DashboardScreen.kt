@@ -188,6 +188,9 @@ fun DashboardScreen(
             LanguageControlCard(
                 sourceLang = state.sourceLanguage,
                 targetLang = state.targetLanguage,
+                selectedTier = state.selectedSpeechModelTier,
+                isTinyDownloaded = state.isTinyModelDownloaded,
+                isBaseDownloaded = state.isBaseModelDownloaded,
                 isSpeechModelDownloaded = state.isSpeechModelDownloaded,
                 isDownloadingSpeechModel = state.isDownloadingSpeechModel,
                 speechModelProgress = state.speechModelProgress,
@@ -197,6 +200,7 @@ fun DashboardScreen(
                 onSourceSelect = { viewModel.setSourceLanguage(it) },
                 onTargetSelect = { viewModel.setTargetLanguage(it) },
                 onSwapLanguages = { viewModel.swapLanguages() },
+                onSelectTier = { viewModel.selectSpeechModelTier(it) },
                 onDownloadSpeechModel = { viewModel.downloadSpeechModel() },
                 onDownloadTranslationModel = { viewModel.downloadTranslationModels() }
             )
@@ -503,6 +507,9 @@ private fun PermissionRowItem(
 private fun LanguageControlCard(
     sourceLang: String,
     targetLang: String,
+    selectedTier: com.subbot.stt.WhisperModelTier,
+    isTinyDownloaded: Boolean,
+    isBaseDownloaded: Boolean,
     isSpeechModelDownloaded: Boolean,
     isDownloadingSpeechModel: Boolean,
     speechModelProgress: Int,
@@ -512,6 +519,7 @@ private fun LanguageControlCard(
     onSourceSelect: (String) -> Unit,
     onTargetSelect: (String) -> Unit,
     onSwapLanguages: () -> Unit,
+    onSelectTier: (com.subbot.stt.WhisperModelTier) -> Unit,
     onDownloadSpeechModel: () -> Unit,
     onDownloadTranslationModel: () -> Unit
 ) {
@@ -586,28 +594,145 @@ private fun LanguageControlCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Speech Model Tier Selector Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Speech Model Tier",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                if (sourceLang.equals("ja", ignoreCase = true)) {
+                    Text(
+                        text = "★ Base recommended for Japanese",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = EmeraldTertiary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Tier Selector Chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.subbot.stt.WhisperModelTier.values().forEach { tier ->
+                    val isSelected = tier == selectedTier
+                    val isTierDownloaded = if (tier == com.subbot.stt.WhisperModelTier.BASE) isBaseDownloaded else isTinyDownloaded
+                    Surface(
+                        onClick = { onSelectTier(tier) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) CyanContainer else DarkSurfaceElevated,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) CyanPrimary else DarkBorder
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = tier.displayName,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) CyanPrimaryLight else TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isTierDownloaded) "Downloaded ✓" else "~${tier.approxSizeMb}MB",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isTierDownloaded) EmeraldTertiary else TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // Whisper STT Model Status
+            val isCurrentTierDownloaded = if (selectedTier == com.subbot.stt.WhisperModelTier.BASE) isBaseDownloaded else isTinyDownloaded
             ModelStatusRow(
-                title = "Whisper Speech Engine (${sourceLang.uppercase()})",
-                isDownloaded = isSpeechModelDownloaded,
+                title = "Whisper Engine (${selectedTier.displayName})",
+                isDownloaded = isCurrentTierDownloaded,
                 isDownloading = isDownloadingSpeechModel,
                 progress = speechModelProgress,
-                downloadButtonLabel = "Download (~104MB)",
+                downloadButtonLabel = "Download (~${selectedTier.approxSizeMb}MB)",
                 onDownload = onDownloadSpeechModel
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             // Translation Model Status
-            val transEstimate = if (sourceLang != "en" && !areTranslationModelsDownloaded) "~60MB" else "~30MB"
-            ModelStatusRow(
-                title = "Offline Translation (${sourceLang.uppercase()} → ${targetLang.uppercase()})",
-                isDownloaded = areTranslationModelsDownloaded,
-                isDownloading = isDownloadingModel,
-                progress = 0,
-                downloadButtonLabel = "Download ($transEstimate)",
-                onDownload = onDownloadTranslationModel
-            )
+            val isDirectWhisper = !sourceLang.equals("en", ignoreCase = true) && !sourceLang.equals(targetLang, ignoreCase = true)
+            val isDirectToEnglish = isDirectWhisper && targetLang.equals("en", ignoreCase = true)
+            val isSameLanguage = sourceLang.equals(targetLang, ignoreCase = true)
+
+            if (isDirectToEnglish) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkSurfaceElevated)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Direct Speech-to-English Translation",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Acoustic translation via Whisper • 0ms ML Kit latency ✓",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldTertiary
+                        )
+                    }
+                }
+            } else if (isSameLanguage) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkSurfaceElevated)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Transcription Mode (${sourceLang.uppercase()})",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Direct transcription without translation ✓",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldTertiary
+                        )
+                    }
+                }
+            } else {
+                val transEstimate = "~30MB"
+                ModelStatusRow(
+                    title = "Offline Translation (${if (isDirectWhisper) "EN" else sourceLang.uppercase()} → ${targetLang.uppercase()})",
+                    isDownloaded = areTranslationModelsDownloaded,
+                    isDownloading = isDownloadingModel,
+                    progress = 0,
+                    downloadButtonLabel = "Download ($transEstimate)",
+                    onDownload = onDownloadTranslationModel
+                )
+            }
 
             if (statusMessage.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))

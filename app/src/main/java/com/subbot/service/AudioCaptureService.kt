@@ -46,6 +46,7 @@ class AudioCaptureService : Service() {
         const val EXTRA_IS_BILINGUAL = "extra_is_bilingual"
         const val EXTRA_IS_TOP = "extra_is_top"
         const val EXTRA_FONT_SIZE = "extra_font_size"
+        const val EXTRA_TASK = "extra_task"
 
         // Global singleton access for overlay view to bind state
         var subtitleQueue: SubtitleQueue? = null
@@ -157,12 +158,18 @@ class AudioCaptureService : Service() {
                 queue.postSubtitle("SubBot Active", "Listening for speech...")
             }
 
-            // Initialize STT engine
+            val isDirectTranslate = sourceLang != "en" && targetLang != sourceLang
+            val preferredTask = intent.getStringExtra(EXTRA_TASK)
+            val sttTask = preferredTask ?: if (isDirectTranslate) "translate" else "transcribe"
+
+            // Initialize STT engine with 4 threads and optimal task
             val config = SpeechRecognitionConfig(
                 encoderPath = encoderPath,
                 decoderPath = decoderPath,
                 tokensPath = tokensPath,
-                language = sourceLang
+                language = sourceLang,
+                task = sttTask,
+                numThreads = 4
             )
 
             if (config.filesExist()) {
@@ -185,13 +192,42 @@ class AudioCaptureService : Service() {
                 pipelineJob = serviceScope.launch(Dispatchers.Default) {
                     speechEngine?.processStream(audioChannel) { recognizedUtterance ->
                         if (!isPaused && recognizedUtterance.isNotBlank()) {
-                            val translatedText = translationEngine.translate(
-                                text = recognizedUtterance,
-                                sourceLang = sourceLang,
-                                targetLang = targetLang
-                            )
+                            val originalText: String
+                            val translatedText: String
+
+                            if (sttTask == "translate") {
+                                // Whisper directly translated speech into English
+                                if (targetLang.equals("en", ignoreCase = true)) {
+                                    originalText = if (isBilingual) recognizedUtterance else ""
+                                    translatedText = recognizedUtterance
+                                } else {
+                                    // Pivot through English to target language (e.g. Japanese -> English -> Vietnamese)
+                                    val targetTranslated = translationEngine.translate(
+                                        text = recognizedUtterance,
+                                        sourceLang = "en",
+                                        targetLang = targetLang
+                                    )
+                                    originalText = recognizedUtterance
+                                    translatedText = targetTranslated
+                                }
+                            } else {
+                                // sttTask == "transcribe": recognizedUtterance is in sourceLang
+                                if (sourceLang.equals(targetLang, ignoreCase = true)) {
+                                    originalText = ""
+                                    translatedText = recognizedUtterance
+                                } else {
+                                    val targetTranslated = translationEngine.translate(
+                                        text = recognizedUtterance,
+                                        sourceLang = sourceLang,
+                                        targetLang = targetLang
+                                    )
+                                    originalText = recognizedUtterance
+                                    translatedText = targetTranslated
+                                }
+                            }
+
                             subtitleQueue?.postSubtitle(
-                                original = recognizedUtterance,
+                                original = originalText,
                                 translated = translatedText
                             )
                         }

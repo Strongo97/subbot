@@ -17,44 +17,102 @@ sealed class ModelDownloadState {
 }
 
 /**
+ * Speech recognition model tiers:
+ * - TINY: 39M parameters, lightweight (~104MB), fastest inference, best for English.
+ * - BASE: 74M parameters, higher accuracy (~160MB), 2x parameters, recommended for Japanese.
+ */
+enum class WhisperModelTier(
+    val id: String,
+    val displayName: String,
+    val description: String,
+    val baseUrl: String,
+    val tokenFile: String,
+    val encoderFile: String,
+    val decoderFile: String,
+    val approxSizeMb: Int
+) {
+    TINY(
+        id = "tiny",
+        displayName = "Whisper Tiny (Fast)",
+        description = "Lightweight (~104MB) • Ultra-fast • Best for English",
+        baseUrl = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main",
+        tokenFile = "tiny-tokens.txt",
+        encoderFile = "tiny-encoder.int8.onnx",
+        decoderFile = "tiny-decoder.int8.onnx",
+        approxSizeMb = 104
+    ),
+    BASE(
+        id = "base",
+        displayName = "Whisper Base (High Accuracy)",
+        description = "High accuracy (~160MB) • 2x parameters • Recommended for Japanese",
+        baseUrl = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base/resolve/main",
+        tokenFile = "base-tokens.txt",
+        encoderFile = "base-encoder.int8.onnx",
+        decoderFile = "base-decoder.int8.onnx",
+        approxSizeMb = 160
+    );
+
+    companion object {
+        fun fromId(id: String?): WhisperModelTier {
+            return values().firstOrNull { it.id.equals(id, ignoreCase = true) } ?: TINY
+        }
+    }
+}
+
+/**
  * Manages downloading and validating the Sherpa-ONNX Whisper speech recognition model files.
- * Supports both multilingual (Japanese, English, etc.) and English-only models.
+ * Supports both Tiny (fast) and Base (high accuracy) model tiers.
  */
 class WhisperModelManager(val targetDir: File) {
 
     companion object {
-        // Multilingual Whisper Tiny model (supports 99 languages including Japanese, English, Vietnamese, etc.)
         const val MULTILINGUAL_BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main"
         val MULTILINGUAL_FILES = listOf(
             "tiny-tokens.txt",
             "tiny-encoder.int8.onnx",
             "tiny-decoder.int8.onnx"
         )
-
-        // English-only Whisper Tiny model
-        const val ENGLISH_BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main"
-        val ENGLISH_FILES = listOf(
-            "tiny.en-tokens.txt",
-            "tiny.en-encoder.int8.onnx",
-            "tiny.en-decoder.int8.onnx"
-        )
     }
 
-    // Multilingual model files
-    val multilingualEncoder: File get() = File(targetDir, "tiny-encoder.int8.onnx")
-    val multilingualDecoder: File get() = File(targetDir, "tiny-decoder.int8.onnx")
-    val multilingualTokens: File get() = File(targetDir, "tiny-tokens.txt")
+    // Legacy file references pointing to default Tiny
+    val multilingualEncoder: File get() = getModelFilesForTier(WhisperModelTier.TINY).first
+    val multilingualDecoder: File get() = getModelFilesForTier(WhisperModelTier.TINY).second
+    val multilingualTokens: File get() = getModelFilesForTier(WhisperModelTier.TINY).third
+
+    /**
+     * Checks if all 3 files for the specified model tier exist and have non-trivial size.
+     */
+    fun isTierAvailable(tier: WhisperModelTier): Boolean {
+        val encoder = File(targetDir, tier.encoderFile)
+        val decoder = File(targetDir, tier.decoderFile)
+        val tokens = File(targetDir, tier.tokenFile)
+        if (encoder.exists() && encoder.length() > 1000 &&
+            decoder.exists() && decoder.length() > 1000 &&
+            tokens.exists() && tokens.length() > 1000
+        ) {
+            return true
+        }
+
+        // Check legacy directory (e.g. models/whisper-tiny) if targetDir is models/whisper
+        if (tier == WhisperModelTier.TINY) {
+            val legacy = File(targetDir.parentFile, "whisper-tiny")
+            val lEnc = File(legacy, tier.encoderFile)
+            val lDec = File(legacy, tier.decoderFile)
+            val lTok = File(legacy, tier.tokenFile)
+            if (lEnc.exists() && lEnc.length() > 1000 &&
+                lDec.exists() && lDec.length() > 1000 &&
+                lTok.exists() && lTok.length() > 1000
+            ) {
+                return true
+            }
+        }
+        return false
+    }
 
     // English-only model files
     val englishEncoder: File get() = File(targetDir, "tiny.en-encoder.int8.onnx")
     val englishDecoder: File get() = File(targetDir, "tiny.en-decoder.int8.onnx")
     val englishTokens: File get() = File(targetDir, "tiny.en-tokens.txt")
-
-    fun hasMultilingualModel(): Boolean {
-        return multilingualEncoder.exists() && multilingualEncoder.length() > 1000 &&
-                multilingualDecoder.exists() && multilingualDecoder.length() > 1000 &&
-                multilingualTokens.exists() && multilingualTokens.length() > 1000
-    }
 
     fun hasEnglishOnlyModel(): Boolean {
         return englishEncoder.exists() && englishEncoder.length() > 1000 &&
@@ -62,10 +120,14 @@ class WhisperModelManager(val targetDir: File) {
                 englishTokens.exists() && englishTokens.length() > 1000
     }
 
+    fun hasMultilingualModel(): Boolean {
+        return isTierAvailable(WhisperModelTier.TINY) || isTierAvailable(WhisperModelTier.BASE)
+    }
+
     /**
-     * Checks if a suitable model is available for the given language.
-     * English can use either multilingual or English-only model.
-     * Japanese (and other non-English languages) require the multilingual model.
+     * Checks if a suitable speech recognition model is available for the given language.
+     * English can use English-only or multilingual models.
+     * Non-English languages (Japanese, etc.) require a multilingual model tier.
      */
     fun isModelAvailable(langCode: String = "en"): Boolean {
         return if (langCode.equals("en", ignoreCase = true)) {
@@ -76,16 +138,40 @@ class WhisperModelManager(val targetDir: File) {
     }
 
     /**
+     * Resolves the files for the given tier, checking legacy locations if needed.
+     */
+    fun getModelFilesForTier(tier: WhisperModelTier): Triple<File, File, File> {
+        val encoder = File(targetDir, tier.encoderFile)
+        val decoder = File(targetDir, tier.decoderFile)
+        val tokens = File(targetDir, tier.tokenFile)
+        if (encoder.exists() && decoder.exists() && tokens.exists()) {
+            return Triple(encoder, decoder, tokens)
+        }
+        if (tier == WhisperModelTier.TINY) {
+            val legacy = File(targetDir.parentFile, "whisper-tiny")
+            val lEnc = File(legacy, tier.encoderFile)
+            val lDec = File(legacy, tier.decoderFile)
+            val lTok = File(legacy, tier.tokenFile)
+            if (lEnc.exists() && lDec.exists() && lTok.exists()) {
+                return Triple(lEnc, lDec, lTok)
+            }
+        }
+        return Triple(encoder, decoder, tokens)
+    }
+
+    /**
      * Returns the encoder, decoder, and tokens files for the given language.
+     * Uses BASE tier if available, otherwise TINY tier, or English-only model if applicable.
      */
     fun getModelFiles(langCode: String = "en"): Triple<File, File, File> {
-        return if (hasMultilingualModel()) {
-            Triple(multilingualEncoder, multilingualDecoder, multilingualTokens)
+        return if (isTierAvailable(WhisperModelTier.BASE)) {
+            getModelFilesForTier(WhisperModelTier.BASE)
+        } else if (isTierAvailable(WhisperModelTier.TINY)) {
+            getModelFilesForTier(WhisperModelTier.TINY)
         } else if (langCode.equals("en", ignoreCase = true) && hasEnglishOnlyModel()) {
             Triple(englishEncoder, englishDecoder, englishTokens)
         } else {
-            // Default to multilingual paths
-            Triple(multilingualEncoder, multilingualDecoder, multilingualTokens)
+            getModelFilesForTier(WhisperModelTier.TINY)
         }
     }
 
@@ -113,14 +199,14 @@ class WhisperModelManager(val targetDir: File) {
     }
 
     /**
-     * Downloads the multilingual Whisper model to support all languages (including Japanese and English).
+     * Downloads the specified Whisper model tier (Tiny or Base).
      */
-    fun downloadModel(): Flow<ModelDownloadState> = flow {
+    fun downloadTier(tier: WhisperModelTier): Flow<ModelDownloadState> = flow {
         if (!targetDir.exists()) {
             targetDir.mkdirs()
         }
 
-        val filesToDownload = MULTILINGUAL_FILES
+        val filesToDownload = listOf(tier.tokenFile, tier.encoderFile, tier.decoderFile)
 
         for ((index, fileName) in filesToDownload.withIndex()) {
             val destFile = File(targetDir, fileName)
@@ -132,7 +218,7 @@ class WhisperModelManager(val targetDir: File) {
             }
 
             val tempFile = File(targetDir, "$fileName.tmp")
-            val fileUrl = "$MULTILINGUAL_BASE_URL/$fileName"
+            val fileUrl = "${tier.baseUrl}/$fileName"
 
             try {
                 val conn = openConnectionWithRedirects(fileUrl)
@@ -175,4 +261,9 @@ class WhisperModelManager(val targetDir: File) {
         }
         emit(ModelDownloadState.Completed)
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Backward-compatible download method defaulting to TINY tier.
+     */
+    fun downloadModel(): Flow<ModelDownloadState> = downloadTier(WhisperModelTier.TINY)
 }

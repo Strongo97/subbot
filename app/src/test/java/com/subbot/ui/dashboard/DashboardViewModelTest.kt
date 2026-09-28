@@ -152,4 +152,34 @@ class DashboardViewModelTest {
             com.subbot.ui.model.SubtitleFontSize.fromName(null)
         )
     }
+
+    @Test
+    fun testSpeechModelTier_selection() = runTest {
+        val viewModel = DashboardViewModel()
+        org.junit.Assert.assertEquals(
+            com.subbot.stt.WhisperModelTier.TINY,
+            viewModel.uiState.value.selectedSpeechModelTier
+        )
+
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.BASE)
+        org.junit.Assert.assertEquals(
+            com.subbot.stt.WhisperModelTier.BASE,
+            viewModel.uiState.value.selectedSpeechModelTier
+        )
+    }
+
+    @Test
+    fun testDirectTranslation_exemptsFromMLKitSourceModel() = runTest {
+        // Japanese -> English with direct Whisper speech translation
+        val stateJapaneseToEnglish = DashboardUiState(
+            isOverlayPermissionGranted = true,
+            isAudioPermissionGranted = true,
+            sourceLanguage = "ja",
+            targetLanguage = "en",
+            isSourceModelDownloaded = true,
+            isTargetModelDownloaded = true,
+            isSpeechModelDownloaded = true
+        )
+        assertTrue(stateJapaneseToEnglish.isReadyToStart)
+    }
 }

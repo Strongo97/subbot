@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.subbot.stt.WhisperModelTier
 import com.subbot.translation.DownloadStatus
 import com.subbot.translation.TranslationEngine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,9 @@ data class DashboardUiState(
     val isSourceModelDownloaded: Boolean = true,
     val isTargetModelDownloaded: Boolean = false,
     val isDownloadingModel: Boolean = false,
+    val selectedSpeechModelTier: WhisperModelTier = WhisperModelTier.TINY,
+    val isTinyModelDownloaded: Boolean = false,
+    val isBaseModelDownloaded: Boolean = false,
     val isSpeechModelDownloaded: Boolean = false,
     val isDownloadingSpeechModel: Boolean = false,
     val speechModelProgress: Int = 0,
@@ -117,29 +121,44 @@ class DashboardViewModel(
 
     fun initModelManager(context: Context) {
         if (modelManager == null) {
-            modelManager = com.subbot.stt.WhisperModelManager(java.io.File(context.filesDir, "models/whisper-tiny"))
+            modelManager = com.subbot.stt.WhisperModelManager(java.io.File(context.filesDir, "models/whisper"))
         }
         checkSpeechModel()
     }
 
-    fun checkSpeechModel() {
-        val lang = _uiState.value.sourceLanguage
-        val available = modelManager?.isModelAvailable(lang) ?: false
-        _uiState.update { it.copy(isSpeechModelDownloaded = available) }
+    fun selectSpeechModelTier(tier: WhisperModelTier) {
+        _uiState.update { it.copy(selectedSpeechModelTier = tier) }
+        checkSpeechModel()
     }
 
-    fun downloadSpeechModel() {
+    fun checkSpeechModel() {
+        val manager = modelManager ?: return
+        val tinyDownloaded = manager.isTierAvailable(WhisperModelTier.TINY)
+        val baseDownloaded = manager.isTierAvailable(WhisperModelTier.BASE)
+        val selectedTier = _uiState.value.selectedSpeechModelTier
+        val isSelectedDownloaded = manager.isTierAvailable(selectedTier)
+
+        _uiState.update {
+            it.copy(
+                isTinyModelDownloaded = tinyDownloaded,
+                isBaseModelDownloaded = baseDownloaded,
+                isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded)
+            )
+        }
+    }
+
+    fun downloadSpeechModel(tier: WhisperModelTier = _uiState.value.selectedSpeechModelTier) {
         val manager = modelManager ?: return
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isDownloadingSpeechModel = true,
                     speechModelProgress = 0,
-                    statusMessage = "Starting speech model download..."
+                    statusMessage = "Starting ${tier.displayName} download..."
                 )
             }
             try {
-                manager.downloadModel().collect { state ->
+                manager.downloadTier(tier).collect { state ->
                     when (state) {
                         is com.subbot.stt.ModelDownloadState.Progress -> {
                             _uiState.update {
@@ -151,12 +170,13 @@ class DashboardViewModel(
                             }
                         }
                         is com.subbot.stt.ModelDownloadState.Completed -> {
+                            checkSpeechModel()
                             _uiState.update {
                                 it.copy(
                                     isDownloadingSpeechModel = false,
                                     isSpeechModelDownloaded = true,
                                     speechModelProgress = 100,
-                                    statusMessage = "Speech model downloaded successfully!"
+                                    statusMessage = "${tier.displayName} downloaded successfully!"
                                 )
                             }
                         }
@@ -182,7 +202,12 @@ class DashboardViewModel(
     }
 
     fun setSourceLanguage(code: String) {
-        _uiState.update { it.copy(sourceLanguage = code) }
+        val autoTier = if (code.equals("ja", ignoreCase = true) && _uiState.value.isBaseModelDownloaded) {
+            WhisperModelTier.BASE
+        } else {
+            _uiState.value.selectedSpeechModelTier
+        }
+        _uiState.update { it.copy(sourceLanguage = code, selectedSpeechModelTier = autoTier) }
         checkTranslationModelsDownloaded()
         checkSpeechModel()
     }
@@ -240,8 +265,23 @@ class DashboardViewModel(
             try {
                 val source = _uiState.value.sourceLanguage
                 val target = _uiState.value.targetLanguage
-                val sourceDownloaded = if (source.equals("en", ignoreCase = true)) true else engine.isModelDownloaded(source)
-                val targetDownloaded = engine.isModelDownloaded(target)
+
+                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true)
+
+                val sourceDownloaded = if (source.equals("en", ignoreCase = true) || isDirectWhisperTranslation || source.equals(target, ignoreCase = true)) {
+                    true
+                } else {
+                    engine.isModelDownloaded(source)
+                }
+
+                val targetDownloaded = if (target.equals("en", ignoreCase = true) && isDirectWhisperTranslation) {
+                    true
+                } else if (source.equals(target, ignoreCase = true)) {
+                    true
+                } else {
+                    engine.isModelDownloaded(target)
+                }
+
                 _uiState.update {
                     it.copy(
                         isSourceModelDownloaded = sourceDownloaded,
@@ -263,11 +303,15 @@ class DashboardViewModel(
         val target = _uiState.value.targetLanguage
         viewModelScope.launch {
             try {
+                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true)
                 val missing = mutableListOf<String>()
-                if (!source.equals("en", ignoreCase = true) && !_uiState.value.isSourceModelDownloaded) {
+
+                if (!source.equals("en", ignoreCase = true) && !isDirectWhisperTranslation && !source.equals(target, ignoreCase = true) && !_uiState.value.isSourceModelDownloaded) {
                     missing.add(source)
                 }
-                if (!_uiState.value.isTargetModelDownloaded) {
+
+                val isTargetExempt = (target.equals("en", ignoreCase = true) && isDirectWhisperTranslation) || source.equals(target, ignoreCase = true)
+                if (!isTargetExempt && !_uiState.value.isTargetModelDownloaded) {
                     missing.add(target)
                 }
 

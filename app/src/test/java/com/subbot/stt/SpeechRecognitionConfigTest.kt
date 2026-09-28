@@ -33,4 +33,49 @@ class SpeechRecognitionConfigTest {
         org.junit.Assert.assertEquals("thank you", SpeechRecognitionEngine.cleanUtterance("[BLANK_AUDIO] thank you"))
         org.junit.Assert.assertEquals("Today is great", SpeechRecognitionEngine.cleanUtterance("--- Today is great ---"))
     }
+
+    @Test
+    fun testIsHallucination_detectsPhantomPhrasesAndRepetitions() {
+        // Known phantom phrases on quiet/silence/BGM
+        assertTrue(SpeechRecognitionEngine.isHallucination("ご視聴ありがとうございました"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("チャンネル登録よろしくお願いします"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("Thank you for watching."))
+        assertTrue(SpeechRecognitionEngine.isHallucination("Subtitles by amara.org"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("お疲れ様でした"))
+
+        // Repetitive character sequences
+        assertTrue(SpeechRecognitionEngine.isHallucination("ああああああ"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("......"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("hahahaha"))
+
+        // Repetitive words
+        assertTrue(SpeechRecognitionEngine.isHallucination("you you you you"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("the the the the"))
+
+        // Very short or empty
+        assertTrue(SpeechRecognitionEngine.isHallucination(""))
+        assertTrue(SpeechRecognitionEngine.isHallucination("a"))
+
+        // Legitimate sentences must NOT be flagged as hallucination
+        assertFalse(SpeechRecognitionEngine.isHallucination("Hello, how are you today?"))
+        assertFalse(SpeechRecognitionEngine.isHallucination("こんにちは、本日の天気は晴れです。"))
+        assertFalse(SpeechRecognitionEngine.isHallucination("This is a complete and valid sentence for translation."))
+    }
+
+    @Test
+    fun testWhisperModelTier_properties() {
+        val tiny = WhisperModelTier.TINY
+        val base = WhisperModelTier.BASE
+
+        org.junit.Assert.assertEquals("tiny", tiny.id)
+        org.junit.Assert.assertEquals(104, tiny.approxSizeMb)
+        assertTrue(tiny.tokenFile.contains("tiny"))
+
+        org.junit.Assert.assertEquals("base", base.id)
+        org.junit.Assert.assertEquals(160, base.approxSizeMb)
+        assertTrue(base.tokenFile.contains("base"))
+
+        org.junit.Assert.assertEquals(WhisperModelTier.BASE, WhisperModelTier.fromId("base"))
+        org.junit.Assert.assertEquals(WhisperModelTier.TINY, WhisperModelTier.fromId("unknown"))
+    }
 }
