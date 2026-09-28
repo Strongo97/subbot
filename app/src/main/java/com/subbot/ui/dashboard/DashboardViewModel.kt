@@ -29,18 +29,25 @@ data class DashboardUiState(
     val isServiceRunning: Boolean = false,
     val isTargetModelDownloaded: Boolean = false,
     val isDownloadingModel: Boolean = false,
+    val isSpeechModelDownloaded: Boolean = false,
+    val isDownloadingSpeechModel: Boolean = false,
+    val speechModelProgress: Int = 0,
+    val speechModelFile: String = "",
     val statusMessage: String = ""
 ) {
     val areCorePermissionsGranted: Boolean
         get() = isOverlayPermissionGranted && isAudioPermissionGranted
 
     val isReadyToStart: Boolean
-        get() = areCorePermissionsGranted && isTargetModelDownloaded
+        get() = areCorePermissionsGranted && isTargetModelDownloaded && isSpeechModelDownloaded
 }
 
 class DashboardViewModel(
-    private val translationEngine: com.subbot.translation.ITranslationEngine? = null
+    private val translationEngine: com.subbot.translation.ITranslationEngine? = null,
+    private val whisperModelManager: com.subbot.stt.WhisperModelManager? = null
 ) : ViewModel() {
+
+    private var modelManager: com.subbot.stt.WhisperModelManager? = whisperModelManager
 
     private val engine: com.subbot.translation.ITranslationEngine by lazy {
         translationEngine ?: TranslationEngine()
@@ -100,6 +107,72 @@ class DashboardViewModel(
         }
 
         checkTargetModelDownloaded()
+        initModelManager(context)
+    }
+
+    fun initModelManager(context: Context) {
+        if (modelManager == null) {
+            modelManager = com.subbot.stt.WhisperModelManager(java.io.File(context.filesDir, "models/whisper-tiny"))
+        }
+        checkSpeechModel()
+    }
+
+    fun checkSpeechModel() {
+        val available = modelManager?.isModelAvailable() ?: false
+        _uiState.update { it.copy(isSpeechModelDownloaded = available) }
+    }
+
+    fun downloadSpeechModel() {
+        val manager = modelManager ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDownloadingSpeechModel = true,
+                    speechModelProgress = 0,
+                    statusMessage = "Starting speech model download..."
+                )
+            }
+            try {
+                manager.downloadModel().collect { state ->
+                    when (state) {
+                        is com.subbot.stt.ModelDownloadState.Progress -> {
+                            _uiState.update {
+                                it.copy(
+                                    speechModelProgress = state.progressPercent,
+                                    speechModelFile = state.currentFile,
+                                    statusMessage = "Downloading ${state.currentFile} (${state.progressPercent}%)"
+                                )
+                            }
+                        }
+                        is com.subbot.stt.ModelDownloadState.Completed -> {
+                            _uiState.update {
+                                it.copy(
+                                    isDownloadingSpeechModel = false,
+                                    isSpeechModelDownloaded = true,
+                                    speechModelProgress = 100,
+                                    statusMessage = "Speech model downloaded successfully!"
+                                )
+                            }
+                        }
+                        is com.subbot.stt.ModelDownloadState.Error -> {
+                            _uiState.update {
+                                it.copy(
+                                    isDownloadingSpeechModel = false,
+                                    statusMessage = "Speech model error: ${state.message}"
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        isDownloadingSpeechModel = false,
+                        statusMessage = "Speech model download error: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
     }
 
     fun setSourceLanguage(code: String) {

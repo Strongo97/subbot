@@ -145,6 +145,12 @@ class AudioCaptureService : Service() {
                 }
             }, Handler(Looper.getMainLooper()))
 
+            val isTop = intent.getBooleanExtra("extra_is_top", false)
+            subtitleQueue?.let { queue ->
+                overlayManager?.showOverlay(queue.uiState, isTop = isTop)
+                queue.postSubtitle("SubBot Active", "Listening for speech...")
+            }
+
             // Initialize STT engine
             val config = SpeechRecognitionConfig(
                 encoderPath = encoderPath,
@@ -153,33 +159,41 @@ class AudioCaptureService : Service() {
                 language = sourceLang
             )
 
-            if (config.isValid()) {
-                val engine = SpeechRecognitionEngine(config, assets)
-                engine.initialize()
-                speechEngine = engine
+            if (config.filesExist()) {
+                try {
+                    val engine = SpeechRecognitionEngine(config, assetManager = null)
+                    engine.initialize()
+                    speechEngine = engine
+                } catch (e: Throwable) {
+                    android.util.Log.e("AudioCaptureService", "Failed to initialize STT engine", e)
+                    subtitleQueue?.postSubtitle("STT Init Error", e.localizedMessage ?: "Failed to load speech model")
+                }
+            } else {
+                android.util.Log.e("AudioCaptureService", "Whisper model files not found at $encoderPath")
+                subtitleQueue?.postSubtitle("Model Missing", "Please download the speech model in SubBot")
             }
 
             // Start Audio capture and streaming pipeline
-            val audioChannel = audioCaptureManager.startCapture(projection)
-            pipelineJob = serviceScope.launch(Dispatchers.Default) {
-                speechEngine?.processStream(audioChannel) { recognizedUtterance ->
-                    if (!isPaused && recognizedUtterance.isNotBlank()) {
-                        val translatedText = translationEngine.translate(
-                            text = recognizedUtterance,
-                            sourceLang = sourceLang,
-                            targetLang = targetLang
-                        )
-                        subtitleQueue?.postSubtitle(
-                            original = recognizedUtterance,
-                            translated = translatedText
-                        )
+            try {
+                val audioChannel = audioCaptureManager.startCapture(projection)
+                pipelineJob = serviceScope.launch(Dispatchers.Default) {
+                    speechEngine?.processStream(audioChannel) { recognizedUtterance ->
+                        if (!isPaused && recognizedUtterance.isNotBlank()) {
+                            val translatedText = translationEngine.translate(
+                                text = recognizedUtterance,
+                                sourceLang = sourceLang,
+                                targetLang = targetLang
+                            )
+                            subtitleQueue?.postSubtitle(
+                                original = recognizedUtterance,
+                                translated = translatedText
+                            )
+                        }
                     }
                 }
-            }
-
-            val isTop = intent.getBooleanExtra("extra_is_top", false)
-            subtitleQueue?.let { queue ->
-                overlayManager?.showOverlay(queue.uiState, isTop = isTop)
+            } catch (e: Throwable) {
+                android.util.Log.e("AudioCaptureService", "Audio capture failed", e)
+                subtitleQueue?.postSubtitle("Capture Error", e.localizedMessage ?: "Failed to start capture")
             }
         }
     }

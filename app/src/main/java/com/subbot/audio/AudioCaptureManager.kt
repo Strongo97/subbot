@@ -64,6 +64,11 @@ class AudioCaptureManager {
         val audioChannel = Channel<FloatArray>(capacity = 64)
         channel = audioChannel
 
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            audioChannel.close()
+            return audioChannel
+        }
+
         val scope = CoroutineScope(Dispatchers.IO)
         captureScope = scope
 

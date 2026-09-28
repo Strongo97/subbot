@@ -144,14 +144,43 @@ fun DashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Offline Model Status
+                    // Speech Recognition Model Status
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = if (state.isTargetModelDownloaded) "Offline Model: Ready ✓" else "Offline Model: Not Downloaded",
+                            text = if (state.isSpeechModelDownloaded) "Speech Model: Ready ✓" else "Speech Model: Not Downloaded",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (state.isSpeechModelDownloaded) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (!state.isSpeechModelDownloaded) {
+                            if (state.isDownloadingSpeechModel) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("${state.speechModelProgress}%", style = MaterialTheme.typography.bodySmall)
+                                }
+                            } else {
+                                OutlinedButton(onClick = { viewModel.downloadSpeechModel() }) {
+                                    Text("Download (~74MB)")
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Offline Translation Model Status
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (state.isTargetModelDownloaded) "Translation Model: Ready ✓" else "Translation Model: Not Downloaded",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (state.isTargetModelDownloaded) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                         )

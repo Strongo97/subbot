@@ -124,6 +124,7 @@ class SubtitleOverlayManager(private val context: Context) {
         private val lifecycleRegistry = LifecycleRegistry(this)
         private val savedStateRegistryController = SavedStateRegistryController.create(this)
         private val store = ViewModelStore()
+        private var isRestored = false
 
         override val lifecycle: Lifecycle get() = lifecycleRegistry
         override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
@@ -134,7 +135,10 @@ class SubtitleOverlayManager(private val context: Context) {
         }
 
         fun performRestore(savedState: android.os.Bundle?) {
-            savedStateRegistryController.performRestore(savedState)
+            if (!isRestored) {
+                savedStateRegistryController.performRestore(savedState)
+                isRestored = true
+            }
         }
     }
 }

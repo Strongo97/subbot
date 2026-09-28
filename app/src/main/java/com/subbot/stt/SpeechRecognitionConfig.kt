@@ -16,4 +16,11 @@ data class SpeechRecognitionConfig(
                decoderPath.isNotBlank() &&
                tokensPath.isNotBlank()
     }
+
+    fun filesExist(): Boolean {
+        return isValid() &&
+               java.io.File(encoderPath).exists() &&
+               java.io.File(decoderPath).exists() &&
+               java.io.File(tokensPath).exists()
+    }
 }
