@@ -16,6 +16,7 @@ import com.subbot.audio.AudioCaptureManager
 import com.subbot.stt.SpeechRecognitionConfig
 import com.subbot.stt.SpeechRecognitionEngine
 import com.subbot.translation.TranslationEngine
+import com.subbot.ui.overlay.SubtitleOverlayManager
 import com.subbot.ui.overlay.SubtitleQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +57,7 @@ class AudioCaptureService : Service() {
     private val audioCaptureManager = AudioCaptureManager()
     private var speechEngine: SpeechRecognitionEngine? = null
     private val translationEngine = TranslationEngine()
+    private var overlayManager: SubtitleOverlayManager? = null
 
     private var sourceLang: String = "en"
     private var targetLang: String = "es"
@@ -66,7 +68,10 @@ class AudioCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         NotificationHelper.createNotificationChannel(this)
-        subtitleQueue = SubtitleQueue(serviceScope)
+        val queue = SubtitleQueue(serviceScope)
+        subtitleQueue = queue
+        val overlay = SubtitleOverlayManager(this)
+        overlayManager = overlay
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -163,6 +168,11 @@ class AudioCaptureService : Service() {
                     }
                 }
             }
+
+            val isTop = intent.getBooleanExtra("extra_is_top", false)
+            subtitleQueue?.let { queue ->
+                overlayManager?.showOverlay(queue.uiState, isTop = isTop)
+            }
         }
     }
 
@@ -193,6 +203,8 @@ class AudioCaptureService : Service() {
         pipelineJob?.cancel()
         serviceScope.cancel()
 
+        overlayManager?.hideOverlay()
+        overlayManager = null
         audioCaptureManager.stopCapture()
         speechEngine?.release()
         speechEngine = null
