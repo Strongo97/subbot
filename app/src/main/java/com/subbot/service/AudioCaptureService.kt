@@ -15,6 +15,7 @@ import android.os.Looper
 import com.subbot.audio.AudioCaptureManager
 import com.subbot.stt.SpeechRecognitionConfig
 import com.subbot.stt.SpeechRecognitionEngine
+import com.subbot.translation.SentenceAggregator
 import com.subbot.translation.TranslationEngine
 import com.subbot.ui.overlay.SubtitleOverlayManager
 import com.subbot.ui.overlay.SubtitleQueue
@@ -75,6 +76,10 @@ class AudioCaptureService : Service() {
     private var isPaused = false
     private var isStopping = false
     private var mediaProjectionCallback: MediaProjection.Callback? = null
+
+    /** Buffers utterance fragments into sentences before ML Kit translation; null when bypassed. */
+    @Volatile
+    private var sentenceAggregator: SentenceAggregator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -199,51 +204,18 @@ class AudioCaptureService : Service() {
                 subtitleQueue?.postSubtitle("Model Missing", "Please download the speech model in SubBot")
             }
 
+            sentenceAggregator = createSentenceAggregator(sttTask, isBilingual)
+
             // Start Audio capture and streaming pipeline
             try {
                 val audioChannel = audioCaptureManager.startCapture(projection)
                 pipelineJob = serviceScope.launch(Dispatchers.Default) {
                     speechEngine?.processStream(audioChannel) { recognizedUtterance ->
-                        if (!isPaused && recognizedUtterance.isNotBlank()) {
-                            val originalText: String
-                            val translatedText: String
-
-                            if (sttTask == "translate") {
-                                // Whisper directly translated speech into English
-                                if (targetLang.equals("en", ignoreCase = true)) {
-                                    originalText = if (isBilingual) recognizedUtterance else ""
-                                    translatedText = recognizedUtterance
-                                } else {
-                                    // Pivot through English to target language (e.g. Japanese -> English -> Vietnamese)
-                                    val targetTranslated = translationEngine.translate(
-                                        text = recognizedUtterance,
-                                        sourceLang = "en",
-                                        targetLang = targetLang
-                                    )
-                                    originalText = if (isBilingual) recognizedUtterance else ""
-                                    translatedText = targetTranslated
-                                }
-                            } else {
-                                // sttTask == "transcribe": recognizedUtterance is native text in sourceLang (e.g. Japanese "田中です")
-                                if (sourceLang.equals(targetLang, ignoreCase = true)) {
-                                    originalText = ""
-                                    translatedText = recognizedUtterance
-                                } else {
-                                    val targetTranslated = translationEngine.translate(
-                                        text = recognizedUtterance,
-                                        sourceLang = sourceLang,
-                                        targetLang = targetLang
-                                    )
-                                    originalText = if (isBilingual) recognizedUtterance else ""
-                                    translatedText = targetTranslated
-                                }
-                            }
-
-                            subtitleQueue?.postSubtitle(
-                                original = originalText,
-                                translated = translatedText
-                            )
-                        }
+                        handleUtterance(recognizedUtterance, sttTask, isBilingual)
+                    }
+                    // Stream ended on its own (not via stop): emit any trailing partial sentence.
+                    if (!isStopping) {
+                        sentenceAggregator?.flush()
                     }
                 }
             } catch (e: Throwable) {
@@ -253,9 +225,113 @@ class AudioCaptureService : Service() {
         }
     }
 
+    /**
+     * Builds the sentence aggregator used ahead of ML Kit translation, or returns null when
+     * no ML Kit translation happens (Whisper translate task to English, or source == target):
+     * aggregation would then only add latency.
+     */
+    private fun createSentenceAggregator(sttTask: String, isBilingual: Boolean): SentenceAggregator? {
+        val needsMlKit = if (sttTask == "translate") {
+            !targetLang.equals("en", ignoreCase = true)
+        } else {
+            !sourceLang.equals(targetLang, ignoreCase = true)
+        }
+        if (!needsMlKit) return null
+
+        // Whisper's translate task emits English text regardless of the spoken language.
+        val aggregationLang = if (sttTask == "translate") "en" else sourceLang
+        return SentenceAggregator(
+            scope = CoroutineScope(serviceScope.coroutineContext + Dispatchers.Default),
+            languageCode = aggregationLang,
+            onPending = { pendingText ->
+                if (!isPaused && !isStopping) {
+                    if (isBilingual) {
+                        // Bilingual viewers can read the source: show it right away next to
+                        // the last translation (or a placeholder).
+                        subtitleQueue?.postPendingOriginal(pendingText)
+                    } else {
+                        // Translation-only viewers may not read the source language, so don't
+                        // show untranslated text; just keep the previous subtitle up.
+                        subtitleQueue?.keepAlive()
+                    }
+                }
+            },
+            onError = { e ->
+                android.util.Log.e("AudioCaptureService", "Timed sentence translation failed", e)
+            },
+            onSentence = { sentence ->
+                if (!isPaused && !isStopping) {
+                    translateAndPost(sentence, sttTask, isBilingual)
+                }
+            }
+        )
+    }
+
+    /**
+     * Entry point for each utterance emitted by the speech engine. Utterances are cut at
+     * acoustic pauses, so when ML Kit translation is used they are first aggregated into
+     * sentences; otherwise they are posted directly.
+     */
+    private suspend fun handleUtterance(recognizedUtterance: String, sttTask: String, isBilingual: Boolean) {
+        if (isPaused || isStopping || recognizedUtterance.isBlank()) return
+        val aggregator = sentenceAggregator
+        if (aggregator != null) {
+            aggregator.add(recognizedUtterance)
+        } else {
+            translateAndPost(recognizedUtterance, sttTask, isBilingual)
+        }
+    }
+
+    private suspend fun translateAndPost(recognizedUtterance: String, sttTask: String, isBilingual: Boolean) {
+        val originalText: String
+        val translatedText: String
+
+        if (sttTask == "translate") {
+            // Whisper directly translated speech into English
+            if (targetLang.equals("en", ignoreCase = true)) {
+                originalText = if (isBilingual) recognizedUtterance else ""
+                translatedText = recognizedUtterance
+            } else {
+                // Pivot through English to target language (e.g. Japanese -> English -> Vietnamese)
+                val targetTranslated = translationEngine.translate(
+                    text = recognizedUtterance,
+                    sourceLang = "en",
+                    targetLang = targetLang
+                )
+                originalText = if (isBilingual) recognizedUtterance else ""
+                translatedText = targetTranslated
+            }
+        } else {
+            // sttTask == "transcribe": recognizedUtterance is native text in sourceLang (e.g. Japanese "田中です")
+            if (sourceLang.equals(targetLang, ignoreCase = true)) {
+                originalText = ""
+                translatedText = recognizedUtterance
+            } else {
+                val targetTranslated = translationEngine.translate(
+                    text = recognizedUtterance,
+                    sourceLang = sourceLang,
+                    targetLang = targetLang
+                )
+                originalText = if (isBilingual) recognizedUtterance else ""
+                translatedText = targetTranslated
+            }
+        }
+
+        // Don't post to an overlay that is being torn down.
+        if (isStopping) return
+        subtitleQueue?.postSubtitle(
+            original = originalText,
+            translated = translatedText
+        )
+    }
+
     private fun handlePause() {
         isPaused = true
         updateNotification()
+        // Drop the half-sentence spoken before pausing so it doesn't pop up later.
+        sentenceAggregator?.let { aggregator ->
+            serviceScope.launch { aggregator.clear() }
+        }
     }
 
     private fun handleResume() {
@@ -303,6 +379,15 @@ class AudioCaptureService : Service() {
             android.util.Log.e("AudioCaptureService", "Error hiding overlay", e)
         }
         overlayManager = null
+
+        // 1b. Discard any half-aggregated sentence: nothing may be posted to the torn-down
+        // overlay, so this is a synchronous close rather than a translate-and-post flush.
+        try {
+            sentenceAggregator?.close()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error closing sentence aggregator", e)
+        }
+        sentenceAggregator = null
 
         // 2. Stop audio capture and close channel to unblock pipeline stream
         try {

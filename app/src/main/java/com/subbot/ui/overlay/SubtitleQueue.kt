@@ -24,6 +24,11 @@ class SubtitleQueue(
 
     private var fadeJob: Job? = null
 
+    companion object {
+        /** Shown in the translated slot while the first sentence is still being aggregated. */
+        const val PENDING_PLACEHOLDER = "…"
+    }
+
     /**
      * Posts a new utterance and resets the silence fade-out timer.
      *
@@ -37,6 +42,36 @@ class SubtitleQueue(
             translatedText = translated,
             isVisible = true
         )
+        fadeJob = scope.launch {
+            delay(autoFadeTimeoutMs)
+            _uiState.value = _uiState.value.copy(isVisible = false)
+        }
+    }
+
+    /**
+     * Shows provisional (not yet translated) source text in the original slot while a
+     * sentence is still being aggregated. The currently visible translation is kept so the
+     * viewer can finish reading it; if nothing is visible, [PENDING_PLACEHOLDER] is shown
+     * instead so the primary line does not duplicate the source text.
+     */
+    fun postPendingOriginal(original: String) {
+        val current = _uiState.value
+        val translated = if (current.isVisible && current.translatedText.isNotBlank()) {
+            current.translatedText
+        } else {
+            PENDING_PLACEHOLDER
+        }
+        postSubtitle(original = original, translated = translated)
+    }
+
+    /**
+     * Restarts the fade-out timer of the currently visible subtitle without changing its
+     * text. Used while speech continues but no new translation is ready yet. No-op when
+     * nothing is visible.
+     */
+    fun keepAlive() {
+        if (!_uiState.value.isVisible) return
+        fadeJob?.cancel()
         fadeJob = scope.launch {
             delay(autoFadeTimeoutMs)
             _uiState.value = _uiState.value.copy(isVisible = false)
