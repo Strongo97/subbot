@@ -406,8 +406,13 @@ class WhisperModelManager(val targetDir: File) {
         return downloadVadModelOrError() == null
     }
 
-    /** @return null on success, otherwise an error message. Must run off the main thread. */
-    private fun downloadVadModelOrError(): String? {
+    /**
+     * @return null on success, otherwise an error message. Must run off the main thread.
+     * Serialized process-wide: the dashboard and the service may both request the VAD model,
+     * and they share the same temp file.
+     */
+    private fun downloadVadModelOrError(): String? = synchronized(VAD_DOWNLOAD_LOCK) {
+        if (isVadModelAvailable()) return null
         if (!targetDir.exists()) targetDir.mkdirs()
         val destFile = vadModelFile
         val tempFile = File(targetDir, "$VAD_MODEL_FILE_NAME.tmp")
@@ -447,3 +452,4 @@ const val VAD_MODEL_FILE_NAME = "silero_vad.onnx"
 const val VAD_MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
 /** Sanity floor used to reject truncated/HTML-error downloads. */
 const val VAD_MIN_VALID_BYTES = 100_000L
+private val VAD_DOWNLOAD_LOCK = Any()

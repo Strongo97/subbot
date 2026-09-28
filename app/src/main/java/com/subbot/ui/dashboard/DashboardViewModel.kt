@@ -133,6 +133,32 @@ class DashboardViewModel(
             modelManager = com.subbot.stt.WhisperModelManager(java.io.File(context.filesDir, "models/whisper"))
         }
         checkSpeechModel()
+        // Covers upgrades from versions without VAD, where the speech model is already downloaded.
+        if (_uiState.value.isSpeechModelDownloaded) ensureVadModel()
+    }
+
+    private var vadDownloadJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Fetches the small (~630 KB) Silero VAD model in the background so the first subtitle session
+     * already uses VAD segmentation. Best-effort: on failure the service falls back to energy gating
+     * and retries the download itself.
+     */
+    private fun ensureVadModel() {
+        val manager = modelManager ?: return
+        if (manager.isVadModelAvailable() || vadDownloadJob?.isActive == true) return
+        vadDownloadJob = viewModelScope.launch {
+            try {
+                manager.downloadVadModel().collect { state ->
+                    if (state is com.subbot.stt.ModelDownloadState.Error) {
+                        android.util.Log.w("DashboardViewModel", "VAD model download failed: ${state.message}")
+                    }
+                }
+            } catch (e: Throwable) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                android.util.Log.w("DashboardViewModel", "VAD model download failed", e)
+            }
+        }
     }
 
     /**
@@ -216,6 +242,8 @@ class DashboardViewModel(
 
     fun downloadSpeechModel(tier: WhisperModelTier = _uiState.value.selectedSpeechModelTier) {
         val manager = modelManager ?: return
+        // Download the VAD model alongside the speech model (it is tiny and runs in parallel).
+        ensureVadModel()
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
