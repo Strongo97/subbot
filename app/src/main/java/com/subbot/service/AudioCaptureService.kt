@@ -47,6 +47,7 @@ class AudioCaptureService : Service() {
         const val EXTRA_IS_TOP = "extra_is_top"
         const val EXTRA_FONT_SIZE = "extra_font_size"
         const val EXTRA_TASK = "extra_task"
+        const val EXTRA_TRANSLATION_MODE = "extra_translation_mode"
 
         // Global singleton access for overlay view to bind state
         var subtitleQueue: SubtitleQueue? = null
@@ -162,9 +163,15 @@ class AudioCaptureService : Service() {
                 queue.postSubtitle("SubBot Active", "Listening for speech...")
             }
 
-            val isDirectTranslate = sourceLang != "en" && targetLang != sourceLang
+            val translationModeStr = intent.getStringExtra(EXTRA_TRANSLATION_MODE)
+            val translationMode = com.subbot.translation.TranslationMode.fromId(translationModeStr)
+
             val preferredTask = intent.getStringExtra(EXTRA_TASK)
-            val sttTask = preferredTask ?: if (isDirectTranslate) "translate" else "transcribe"
+            val sttTask = preferredTask ?: if (translationMode == com.subbot.translation.TranslationMode.WHISPER_DIRECT && sourceLang != "en" && targetLang != sourceLang) {
+                "translate"
+            } else {
+                "transcribe"
+            }
 
             // Initialize STT engine with 4 threads and optimal task
             val config = SpeechRecognitionConfig(
@@ -211,11 +218,11 @@ class AudioCaptureService : Service() {
                                         sourceLang = "en",
                                         targetLang = targetLang
                                     )
-                                    originalText = recognizedUtterance
+                                    originalText = if (isBilingual) recognizedUtterance else ""
                                     translatedText = targetTranslated
                                 }
                             } else {
-                                // sttTask == "transcribe": recognizedUtterance is in sourceLang
+                                // sttTask == "transcribe": recognizedUtterance is native text in sourceLang (e.g. Japanese "田中です")
                                 if (sourceLang.equals(targetLang, ignoreCase = true)) {
                                     originalText = ""
                                     translatedText = recognizedUtterance
@@ -225,7 +232,7 @@ class AudioCaptureService : Service() {
                                         sourceLang = sourceLang,
                                         targetLang = targetLang
                                     )
-                                    originalText = recognizedUtterance
+                                    originalText = if (isBilingual) recognizedUtterance else ""
                                     translatedText = targetTranslated
                                 }
                             }

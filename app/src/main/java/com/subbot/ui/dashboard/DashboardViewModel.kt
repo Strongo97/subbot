@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.subbot.stt.WhisperModelTier
 import com.subbot.translation.DownloadStatus
 import com.subbot.translation.TranslationEngine
+import com.subbot.translation.TranslationMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,10 +36,12 @@ data class DashboardUiState(
     val selectedSpeechModelTier: WhisperModelTier = WhisperModelTier.TINY,
     val isTinyModelDownloaded: Boolean = false,
     val isBaseModelDownloaded: Boolean = false,
+    val isSmallModelDownloaded: Boolean = false,
     val isSpeechModelDownloaded: Boolean = false,
     val isDownloadingSpeechModel: Boolean = false,
     val speechModelProgress: Int = 0,
     val speechModelFile: String = "",
+    val translationMode: TranslationMode = TranslationMode.GOOGLE_NER,
     val statusMessage: String = ""
 ) {
     val areCorePermissionsGranted: Boolean
@@ -131,10 +134,16 @@ class DashboardViewModel(
         checkSpeechModel()
     }
 
+    fun setTranslationMode(mode: TranslationMode) {
+        _uiState.update { it.copy(translationMode = mode) }
+        checkTranslationModelsDownloaded()
+    }
+
     fun checkSpeechModel() {
         val manager = modelManager ?: return
         val tinyDownloaded = manager.isTierAvailable(WhisperModelTier.TINY)
         val baseDownloaded = manager.isTierAvailable(WhisperModelTier.BASE)
+        val smallDownloaded = manager.isTierAvailable(WhisperModelTier.SMALL)
         val selectedTier = _uiState.value.selectedSpeechModelTier
         val isSelectedDownloaded = manager.isTierAvailable(selectedTier)
 
@@ -142,7 +151,8 @@ class DashboardViewModel(
             it.copy(
                 isTinyModelDownloaded = tinyDownloaded,
                 isBaseModelDownloaded = baseDownloaded,
-                isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded)
+                isSmallModelDownloaded = smallDownloaded,
+                isSpeechModelDownloaded = isSelectedDownloaded || (tinyDownloaded || baseDownloaded || smallDownloaded)
             )
         }
     }
@@ -202,12 +212,20 @@ class DashboardViewModel(
     }
 
     fun setSourceLanguage(code: String) {
-        val autoTier = if (code.equals("ja", ignoreCase = true) && _uiState.value.isBaseModelDownloaded) {
-            WhisperModelTier.BASE
+        val autoTier = if (code.equals("ja", ignoreCase = true)) {
+            if (_uiState.value.isSmallModelDownloaded) WhisperModelTier.SMALL
+            else if (_uiState.value.isBaseModelDownloaded) WhisperModelTier.BASE
+            else if (_uiState.value.selectedSpeechModelTier == WhisperModelTier.TINY) WhisperModelTier.BASE
+            else _uiState.value.selectedSpeechModelTier
         } else {
             _uiState.value.selectedSpeechModelTier
         }
-        _uiState.update { it.copy(sourceLanguage = code, selectedSpeechModelTier = autoTier) }
+        val autoMode = if (code.equals("ja", ignoreCase = true)) {
+            TranslationMode.GOOGLE_NER
+        } else {
+            _uiState.value.translationMode
+        }
+        _uiState.update { it.copy(sourceLanguage = code, selectedSpeechModelTier = autoTier, translationMode = autoMode) }
         checkTranslationModelsDownloaded()
         checkSpeechModel()
     }
@@ -266,7 +284,7 @@ class DashboardViewModel(
                 val source = _uiState.value.sourceLanguage
                 val target = _uiState.value.targetLanguage
 
-                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true)
+                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true) && _uiState.value.translationMode == TranslationMode.WHISPER_DIRECT
 
                 val sourceDownloaded = if (source.equals("en", ignoreCase = true) || isDirectWhisperTranslation || source.equals(target, ignoreCase = true)) {
                     true
@@ -303,7 +321,7 @@ class DashboardViewModel(
         val target = _uiState.value.targetLanguage
         viewModelScope.launch {
             try {
-                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true)
+                val isDirectWhisperTranslation = !source.equals("en", ignoreCase = true) && !source.equals(target, ignoreCase = true) && _uiState.value.translationMode == TranslationMode.WHISPER_DIRECT
                 val missing = mutableListOf<String>()
 
                 if (!source.equals("en", ignoreCase = true) && !isDirectWhisperTranslation && !source.equals(target, ignoreCase = true) && !_uiState.value.isSourceModelDownloaded) {

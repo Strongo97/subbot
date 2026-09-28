@@ -209,6 +209,8 @@ fun DashboardScreen(
                 selectedTier = state.selectedSpeechModelTier,
                 isTinyDownloaded = state.isTinyModelDownloaded,
                 isBaseDownloaded = state.isBaseModelDownloaded,
+                isSmallDownloaded = state.isSmallModelDownloaded,
+                translationMode = state.translationMode,
                 isSpeechModelDownloaded = state.isSpeechModelDownloaded,
                 isDownloadingSpeechModel = state.isDownloadingSpeechModel,
                 speechModelProgress = state.speechModelProgress,
@@ -219,6 +221,7 @@ fun DashboardScreen(
                 onTargetSelect = { viewModel.setTargetLanguage(it) },
                 onSwapLanguages = { viewModel.swapLanguages() },
                 onSelectTier = { viewModel.selectSpeechModelTier(it) },
+                onSelectTranslationMode = { viewModel.setTranslationMode(it) },
                 onDownloadSpeechModel = { viewModel.downloadSpeechModel() },
                 onDownloadTranslationModel = { viewModel.downloadTranslationModels() }
             )
@@ -528,6 +531,8 @@ private fun LanguageControlCard(
     selectedTier: com.subbot.stt.WhisperModelTier,
     isTinyDownloaded: Boolean,
     isBaseDownloaded: Boolean,
+    isSmallDownloaded: Boolean,
+    translationMode: com.subbot.translation.TranslationMode,
     isSpeechModelDownloaded: Boolean,
     isDownloadingSpeechModel: Boolean,
     speechModelProgress: Int,
@@ -538,6 +543,7 @@ private fun LanguageControlCard(
     onTargetSelect: (String) -> Unit,
     onSwapLanguages: () -> Unit,
     onSelectTier: (com.subbot.stt.WhisperModelTier) -> Unit,
+    onSelectTranslationMode: (com.subbot.translation.TranslationMode) -> Unit,
     onDownloadSpeechModel: () -> Unit,
     onDownloadTranslationModel: () -> Unit
 ) {
@@ -626,7 +632,7 @@ private fun LanguageControlCard(
                 )
                 if (sourceLang.equals("ja", ignoreCase = true)) {
                     Text(
-                        text = "★ Base recommended for Japanese",
+                        text = "★ Base or Small recommended",
                         style = MaterialTheme.typography.labelSmall,
                         color = EmeraldTertiary,
                         fontWeight = FontWeight.Medium
@@ -642,7 +648,11 @@ private fun LanguageControlCard(
             ) {
                 com.subbot.stt.WhisperModelTier.values().forEach { tier ->
                     val isSelected = tier == selectedTier
-                    val isTierDownloaded = if (tier == com.subbot.stt.WhisperModelTier.BASE) isBaseDownloaded else isTinyDownloaded
+                    val isTierDownloaded = when (tier) {
+                        com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
+                        com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
+                        com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
+                    }
                     Surface(
                         onClick = { onSelectTier(tier) },
                         shape = RoundedCornerShape(10.dp),
@@ -654,18 +664,19 @@ private fun LanguageControlCard(
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = tier.displayName,
+                                text = tier.displayName.substringBefore(" ("),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) CyanPrimaryLight else TextPrimary
+                                color = if (isSelected) CyanPrimaryLight else TextPrimary,
+                                maxLines = 1
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (isTierDownloaded) "Downloaded ✓" else "~${tier.approxSizeMb}MB",
+                                text = if (isTierDownloaded) "Ready ✓" else "~${tier.approxSizeMb}MB",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isTierDownloaded) EmeraldTertiary else TextSecondary
                             )
@@ -674,10 +685,77 @@ private fun LanguageControlCard(
                 }
             }
 
+            // Translation Mode Selector (Google NER vs Whisper Direct) when translating non-English
+            val canChooseTranslationMode = !sourceLang.equals("en", ignoreCase = true) && !sourceLang.equals(targetLang, ignoreCase = true)
+            if (canChooseTranslationMode) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Translation Mode",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    if (translationMode == com.subbot.translation.TranslationMode.GOOGLE_NER) {
+                        Text(
+                            text = "★ Preserves names & grammar",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldTertiary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.subbot.translation.TranslationMode.values().forEach { mode ->
+                        val isModeSelected = mode == translationMode
+                        Surface(
+                            onClick = { onSelectTranslationMode(mode) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isModeSelected) CyanContainer else DarkSurfaceElevated,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isModeSelected) CyanPrimary else DarkBorder
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = mode.displayName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isModeSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isModeSelected) CyanPrimaryLight else TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (mode == com.subbot.translation.TranslationMode.GOOGLE_NER) "Names & Honorifics" else "Direct Acoustic",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isModeSelected) CyanPrimaryLight else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Whisper STT Model Status
-            val isCurrentTierDownloaded = if (selectedTier == com.subbot.stt.WhisperModelTier.BASE) isBaseDownloaded else isTinyDownloaded
+            val isCurrentTierDownloaded = when (selectedTier) {
+                com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
+                com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
+                com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
+            }
             ModelStatusRow(
                 title = "Whisper Engine (${selectedTier.displayName})",
                 isDownloaded = isCurrentTierDownloaded,
@@ -690,7 +768,7 @@ private fun LanguageControlCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Translation Model Status
-            val isDirectWhisper = !sourceLang.equals("en", ignoreCase = true) && !sourceLang.equals(targetLang, ignoreCase = true)
+            val isDirectWhisper = !sourceLang.equals("en", ignoreCase = true) && !sourceLang.equals(targetLang, ignoreCase = true) && translationMode == com.subbot.translation.TranslationMode.WHISPER_DIRECT
             val isDirectToEnglish = isDirectWhisper && targetLang.equals("en", ignoreCase = true)
             val isSameLanguage = sourceLang.equals(targetLang, ignoreCase = true)
 

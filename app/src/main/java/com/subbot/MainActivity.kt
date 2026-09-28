@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
             val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper"))
             val effectiveTier = if (whisperManager.isTierAvailable(state.selectedSpeechModelTier)) {
                 state.selectedSpeechModelTier
+            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.SMALL)) {
+                com.subbot.stt.WhisperModelTier.SMALL
             } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.BASE)) {
                 com.subbot.stt.WhisperModelTier.BASE
             } else {
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
                 putExtra(AudioCaptureService.EXTRA_IS_BILINGUAL, state.isBilingual)
                 putExtra(AudioCaptureService.EXTRA_IS_TOP, state.isTopPosition)
                 putExtra(AudioCaptureService.EXTRA_FONT_SIZE, state.fontSize.name)
+                putExtra(AudioCaptureService.EXTRA_TRANSLATION_MODE, state.translationMode.id)
                 putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, encoderFile.absolutePath)
                 putExtra(AudioCaptureService.EXTRA_DECODER_PATH, decoderFile.absolutePath)
                 putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, tokensFile.absolutePath)

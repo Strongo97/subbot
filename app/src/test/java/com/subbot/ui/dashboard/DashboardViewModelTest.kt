@@ -166,6 +166,52 @@ class DashboardViewModelTest {
             com.subbot.stt.WhisperModelTier.BASE,
             viewModel.uiState.value.selectedSpeechModelTier
         )
+
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.SMALL)
+        org.junit.Assert.assertEquals(
+            com.subbot.stt.WhisperModelTier.SMALL,
+            viewModel.uiState.value.selectedSpeechModelTier
+        )
+    }
+
+    @Test
+    fun testTranslationMode_toggleAndDefaults() = runTest {
+        val viewModel = DashboardViewModel()
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.GOOGLE_NER,
+            viewModel.uiState.value.translationMode
+        )
+
+        viewModel.setTranslationMode(com.subbot.translation.TranslationMode.WHISPER_DIRECT)
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.WHISPER_DIRECT,
+            viewModel.uiState.value.translationMode
+        )
+
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.GOOGLE_NER,
+            com.subbot.translation.TranslationMode.fromId("google_ner")
+        )
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.WHISPER_DIRECT,
+            com.subbot.translation.TranslationMode.fromId("whisper_direct")
+        )
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.GOOGLE_NER,
+            com.subbot.translation.TranslationMode.fromId("unknown")
+        )
+    }
+
+    @Test
+    fun testSetSourceLanguage_ja_defaultsToGoogleNer() = runTest {
+        val viewModel = DashboardViewModel()
+        viewModel.setTranslationMode(com.subbot.translation.TranslationMode.WHISPER_DIRECT)
+        viewModel.setSourceLanguage("ja")
+
+        org.junit.Assert.assertEquals(
+            com.subbot.translation.TranslationMode.GOOGLE_NER,
+            viewModel.uiState.value.translationMode
+        )
     }
 
     @Test
@@ -176,6 +222,7 @@ class DashboardViewModelTest {
             isAudioPermissionGranted = true,
             sourceLanguage = "ja",
             targetLanguage = "en",
+            translationMode = com.subbot.translation.TranslationMode.WHISPER_DIRECT,
             isSourceModelDownloaded = true,
             isTargetModelDownloaded = true,
             isSpeechModelDownloaded = true

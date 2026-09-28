@@ -25,10 +25,10 @@ class SpeechRecognitionEngine(
     companion object {
         const val SAMPLE_RATE = 16000
         const val SAMPLES_PER_CHUNK = 1600 // 100ms
-        const val MIN_SPEECH_SAMPLES = 16000 // ~1.0s minimum context before pause split (faster response)
-        const val TARGET_SPEECH_SAMPLES = 40000 // ~2.5s ideal clause length
-        const val MAX_BUFFER_SAMPLES = 80000 // ~5.0s maximum buffer before energy split
-        const val SILENCE_THRESHOLD_DB = -35.0f // Filter out quiet ambient noise, hiss, and video BGM
+        const val MIN_SPEECH_SAMPLES = 20800 // ~1.3s minimum context before pause split (faster response)
+        const val TARGET_SPEECH_SAMPLES = 48000 // ~3.0s ideal clause length
+        const val MAX_BUFFER_SAMPLES = 96000 // ~6.0s maximum buffer before energy split
+        const val SILENCE_THRESHOLD_DB = -40.0f // Filter out quiet ambient noise, hiss, and video BGM
 
         val KNOWN_HALLUCINATIONS = setOf(
             "ご視聴ありがとうございました",
@@ -60,8 +60,8 @@ class SpeechRecognitionEngine(
         fun cleanUtterance(raw: String): String {
             return raw
                 .replace(Regex("^\\[.*?\\]"), "") // remove [BLANK_AUDIO] or [MUSIC]
-                .replace(Regex("^[\\s.,…—\\-~]+"), "") // remove leading punctuation, ellipses, dashes
-                .replace(Regex("[\\s.,…—\\-~]+$"), "") // remove trailing ellipses, periods, dashes
+                .replace(Regex("^[\\s.,…—\\-~。、]+"), "") // remove leading punctuation, ellipses, dashes
+                .replace(Regex("[\\s.,…—\\-~。、]+$"), "") // remove trailing ellipses, periods, dashes
                 .replace(Regex("\\.{2,}"), ".") // replace multiple internal dots with single period
                 .trim()
         }
@@ -128,8 +128,9 @@ class SpeechRecognitionEngine(
     ) = withContext(Dispatchers.Default) {
         val rec = recognizer ?: throw IllegalStateException("Engine not initialized. Call initialize() first.")
 
-        val buffer = ArrayList<Float>(100000)
+        val buffer = ArrayList<Float>(120000)
         val chunkEnergies = ArrayList<Float>()
+        val prerollChunks = ArrayDeque<Pair<FloatArray, Float>>(4)
         var trailingSilenceCount = 0
         var consecutiveVoiceChunks = 0
         var hasSpeech = false
@@ -141,18 +142,35 @@ class SpeechRecognitionEngine(
 
             if (!isSilent) {
                 consecutiveVoiceChunks++
-                // Require at least 2 consecutive voice chunks (200ms) to reject transient clicks/noise
-                if (consecutiveVoiceChunks >= 2) {
-                    hasSpeech = true
-                }
-                if (hasSpeech) {
+                if (!hasSpeech) {
+                    if (prerollChunks.size >= 3) {
+                        prerollChunks.removeFirst()
+                    }
+                    prerollChunks.addLast(chunk to rms)
+                    // Require at least 2 consecutive voice chunks (200ms) to reject transient clicks/noise
+                    if (consecutiveVoiceChunks >= 2) {
+                        hasSpeech = true
+                        trailingSilenceCount = 0
+                        // Flush all prerolled onset audio into buffer so no initial consonant/vowel is clipped
+                        while (prerollChunks.isNotEmpty()) {
+                            val (prevChunk, prevRms) = prerollChunks.removeFirst()
+                            for (sample in prevChunk) buffer.add(sample)
+                            chunkEnergies.add(prevRms)
+                        }
+                    }
+                } else {
                     trailingSilenceCount = 0
                     for (sample in chunk) buffer.add(sample)
                     chunkEnergies.add(rms)
                 }
             } else {
                 consecutiveVoiceChunks = 0
-                if (hasSpeech) {
+                if (!hasSpeech) {
+                    if (prerollChunks.size >= 3) {
+                        prerollChunks.removeFirst()
+                    }
+                    prerollChunks.addLast(chunk to rms)
+                } else {
                     trailingSilenceCount++
                     for (sample in chunk) buffer.add(sample)
                     chunkEnergies.add(rms)
@@ -160,17 +178,18 @@ class SpeechRecognitionEngine(
             }
 
             // Pause-based boundary conditions:
-            // 1. Natural clause boundary: >= 1.0s of speech followed by >= 300ms pause (3 chunks)
-            val naturalPause = buffer.size >= MIN_SPEECH_SAMPLES && trailingSilenceCount >= 3
-            // 2. Longer sentence boundary: >= 2.5s of speech followed by >= 200ms pause (2 chunks)
-            val sentencePause = buffer.size >= TARGET_SPEECH_SAMPLES && trailingSilenceCount >= 2
-            // 3. Extended speech without pause reaching maximum capacity (5.0s)
+            // 1. Natural clause boundary: >= 1.3s of speech followed by >= 500ms pause (5 chunks)
+            val naturalPause = buffer.size >= MIN_SPEECH_SAMPLES && trailingSilenceCount >= 5
+            // 2. Longer sentence boundary: >= 3.0s of speech followed by >= 400ms pause (4 chunks)
+            val sentencePause = buffer.size >= TARGET_SPEECH_SAMPLES && trailingSilenceCount >= 4
+            // 3. Extended speech without pause reaching maximum capacity (6.0s)
             val bufferFull = buffer.size >= MAX_BUFFER_SAMPLES
 
             if (naturalPause || sentencePause) {
                 val samplesToDecode = buffer.toFloatArray()
                 buffer.clear()
                 chunkEnergies.clear()
+                prerollChunks.clear()
                 trailingSilenceCount = 0
                 consecutiveVoiceChunks = 0
                 hasSpeech = false
@@ -199,6 +218,7 @@ class SpeechRecognitionEngine(
                 buffer.addAll(remaining)
                 chunkEnergies.clear()
                 chunkEnergies.addAll(remainingEnergies)
+                prerollChunks.clear()
                 trailingSilenceCount = 0
                 consecutiveVoiceChunks = 0
                 hasSpeech = buffer.isNotEmpty()
