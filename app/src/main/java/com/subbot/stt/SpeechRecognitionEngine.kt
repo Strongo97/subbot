@@ -6,7 +6,6 @@ import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
 import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
-import com.subbot.audio.AudioUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.withContext
@@ -16,9 +15,12 @@ import kotlinx.coroutines.withContext
  */
 class SpeechRecognitionEngine(
     private val config: SpeechRecognitionConfig,
-    private val assetManager: AssetManager? = null
+    private val assetManager: AssetManager? = null,
+    /** Path to silero_vad.onnx; null/missing file falls back to energy-based speech detection. */
+    private val vadModelPath: String? = null
 ) {
     private var recognizer: OfflineRecognizer? = null
+    @Volatile private var activeDetector: SpeechDetector? = null
     @Volatile private var isReleased = false
     private val engineLock = Any()
 
@@ -119,8 +121,12 @@ class SpeechRecognitionEngine(
     }
 
     /**
-     * Consumes audio float chunks (16kHz mono), performs VAD / RMS energy gating,
-     * buffers speech until natural pause or boundary, decodes using Whisper, and emits recognized text.
+     * Consumes audio float chunks (16kHz mono) and emits recognized utterances.
+     *
+     * Runs a three-stage pipeline (see [SpeechPipeline]): speech segmentation (Silero VAD when
+     * [vadModelPath] points to a usable model, RMS energy gating otherwise) -> Whisper decoding ->
+     * [onUtterance] delivery. Each stage runs in its own coroutine so a slow decode never stalls
+     * audio intake and a slow [onUtterance] never stalls decoding.
      */
     suspend fun processStream(
         audioChannel: ReceiveChannel<FloatArray>,
@@ -128,125 +134,51 @@ class SpeechRecognitionEngine(
     ) = withContext(Dispatchers.Default) {
         val rec = recognizer ?: throw IllegalStateException("Engine not initialized. Call initialize() first.")
 
-        val buffer = ArrayList<Float>(120000)
-        val chunkEnergies = ArrayList<Float>()
-        val prerollChunks = ArrayDeque<Pair<FloatArray, Float>>(4)
-        var trailingSilenceCount = 0
-        var consecutiveVoiceChunks = 0
-        var hasSpeech = false
-
-        for (chunk in audioChannel) {
-            if (isReleased) break
-            val rms = AudioUtils.calculateRmsDb(chunk)
-            val isSilent = AudioUtils.isSilence(rms, thresholdDb = SILENCE_THRESHOLD_DB)
-
-            if (!isSilent) {
-                consecutiveVoiceChunks++
-                if (!hasSpeech) {
-                    if (prerollChunks.size >= 3) {
-                        prerollChunks.removeFirst()
-                    }
-                    prerollChunks.addLast(chunk to rms)
-                    // Require at least 2 consecutive voice chunks (200ms) to reject transient clicks/noise
-                    if (consecutiveVoiceChunks >= 2) {
-                        hasSpeech = true
-                        trailingSilenceCount = 0
-                        // Flush all prerolled onset audio into buffer so no initial consonant/vowel is clipped
-                        while (prerollChunks.isNotEmpty()) {
-                            val (prevChunk, prevRms) = prerollChunks.removeFirst()
-                            for (sample in prevChunk) buffer.add(sample)
-                            chunkEnergies.add(prevRms)
-                        }
-                    }
-                } else {
-                    trailingSilenceCount = 0
-                    for (sample in chunk) buffer.add(sample)
-                    chunkEnergies.add(rms)
-                }
-            } else {
-                consecutiveVoiceChunks = 0
-                if (!hasSpeech) {
-                    if (prerollChunks.size >= 3) {
-                        prerollChunks.removeFirst()
-                    }
-                    prerollChunks.addLast(chunk to rms)
-                } else {
-                    trailingSilenceCount++
-                    for (sample in chunk) buffer.add(sample)
-                    chunkEnergies.add(rms)
-                }
-            }
-
-            // Pause-based boundary conditions:
-            // 1. Natural clause boundary: >= 1.3s of speech followed by >= 500ms pause (5 chunks)
-            val naturalPause = buffer.size >= MIN_SPEECH_SAMPLES && trailingSilenceCount >= 5
-            // 2. Longer sentence boundary: >= 3.0s of speech followed by >= 400ms pause (4 chunks)
-            val sentencePause = buffer.size >= TARGET_SPEECH_SAMPLES && trailingSilenceCount >= 4
-            // 3. Extended speech without pause reaching maximum capacity (6.0s)
-            val bufferFull = buffer.size >= MAX_BUFFER_SAMPLES
-
-            if (naturalPause || sentencePause) {
-                val samplesToDecode = buffer.toFloatArray()
-                buffer.clear()
-                chunkEnergies.clear()
-                prerollChunks.clear()
-                trailingSilenceCount = 0
-                consecutiveVoiceChunks = 0
-                hasSpeech = false
-
-                decodeAndEmit(rec, samplesToDecode, onUtterance)
-            } else if (bufferFull) {
-                // Find lowest energy chunk in the trailing 1.5s (up to 15 chunks) to split cleanly at a word boundary
-                val searchStart = maxOf(0, chunkEnergies.size - 15)
-                var minEnergyIndex = searchStart
-                var minEnergy = Float.MAX_VALUE
-                for (i in searchStart until chunkEnergies.size) {
-                    if (chunkEnergies[i] < minEnergy) {
-                        minEnergy = chunkEnergies[i]
-                        minEnergyIndex = i
-                    }
-                }
-
-                val splitSample = minOf((minEnergyIndex + 1) * SAMPLES_PER_CHUNK, buffer.size)
-                val samplesToDecode = buffer.subList(0, splitSample).toFloatArray()
-
-                // Carry over the audio after the split point into the next window
-                val remaining = buffer.subList(splitSample, buffer.size).toList()
-                val remainingEnergies = chunkEnergies.subList(minEnergyIndex + 1, chunkEnergies.size).toList()
-
-                buffer.clear()
-                buffer.addAll(remaining)
-                chunkEnergies.clear()
-                chunkEnergies.addAll(remainingEnergies)
-                prerollChunks.clear()
-                trailingSilenceCount = 0
-                consecutiveVoiceChunks = 0
-                hasSpeech = buffer.isNotEmpty()
-
-                decodeAndEmit(rec, samplesToDecode, onUtterance)
-            }
-        }
-
-        // Flush remaining buffer if sufficient audio exists
-        if (!isReleased && buffer.size >= 8000) {
-            decodeAndEmit(rec, buffer.toFloatArray(), onUtterance)
-            buffer.clear()
-            chunkEnergies.clear()
+        val detector = createSpeechDetector()
+        activeDetector = detector
+        try {
+            SpeechPipeline().run(
+                audio = audioChannel,
+                segmenter = SpeechSegmenter(detector),
+                decode = { samples -> decodeSegment(rec, samples) },
+                onUtterance = onUtterance,
+                isStopped = { isReleased }
+            )
+        } finally {
+            activeDetector = null
+            detector.close()
         }
     }
 
-    private suspend fun decodeAndEmit(
-        rec: OfflineRecognizer,
-        samples: FloatArray,
-        onUtterance: suspend (String) -> Unit
-    ) {
-        if (isReleased) return
-        if (samples.size < 8000) return // Skip tiny acoustic clicks (< 0.5s)
-        val rms = AudioUtils.calculateRmsDb(samples)
-        if (rms < -34.0f) return // Skip quiet background hiss / low BGM without vocal energy
+    /**
+     * Silero VAD if the model file is present and loads, otherwise the energy-gating fallback.
+     */
+    private fun createSpeechDetector(): SpeechDetector {
+        val path = vadModelPath
+        if (!path.isNullOrBlank() && java.io.File(path).let { it.exists() && it.length() > 0 }) {
+            try {
+                val vad = SileroVadSpeechDetector.create(path)
+                SttLog.i("Speech detector: Silero VAD ($path)")
+                return vad
+            } catch (e: Throwable) {
+                SttLog.e("Failed to load Silero VAD from $path; using energy gating", e)
+            }
+        } else {
+            SttLog.i("Silero VAD model not available; using energy gating")
+        }
+        return EnergySpeechDetector()
+    }
+
+    /**
+     * Decodes one speech segment with Whisper. Returns the cleaned utterance, or null if the
+     * engine was released, the result is blank, or it matches a known hallucination.
+     * Holds [engineLock] for the whole native call so [release] cannot free the recognizer mid-decode.
+     */
+    private fun decodeSegment(rec: OfflineRecognizer, samples: FloatArray): String? {
+        if (isReleased) return null
 
         val cleaned = synchronized(engineLock) {
-            if (isReleased || recognizer == null) return
+            if (isReleased || recognizer == null) return null
             val stream = rec.createStream()
             try {
                 stream.acceptWaveform(samples, SAMPLE_RATE)
@@ -265,13 +197,7 @@ class SpeechRecognitionEngine(
             }
         }
 
-        if (cleaned.isNotBlank() && !isHallucination(cleaned) && !isReleased) {
-            try {
-                onUtterance(cleaned)
-            } catch (e: Throwable) {
-                android.util.Log.e("SpeechRecognitionEngine", "Error in onUtterance", e)
-            }
-        }
+        return if (cleaned.isNotBlank() && !isHallucination(cleaned) && !isReleased) cleaned else null
     }
 
     fun release() {
@@ -284,5 +210,7 @@ class SpeechRecognitionEngine(
             }
             recognizer = null
         }
+        // Detector has its own lock; closing it here waits for any in-flight VAD call to finish.
+        activeDetector?.close()
     }
 }

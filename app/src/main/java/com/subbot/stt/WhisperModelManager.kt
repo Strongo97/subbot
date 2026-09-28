@@ -298,4 +298,86 @@ class WhisperModelManager(val targetDir: File) {
      * Backward-compatible download method defaulting to TINY tier.
      */
     fun downloadModel(): Flow<ModelDownloadState> = downloadTier(WhisperModelTier.TINY)
+
+    // ---------------------------------------------------------------------------------------
+    // Silero VAD model (speech detection). Independent of the Whisper tier enum: a single small
+    // file shared by every tier, stored next to the Whisper files.
+    // ---------------------------------------------------------------------------------------
+
+    /** Location of silero_vad.onnx (may not exist yet). */
+    val vadModelFile: File get() = File(targetDir, VAD_MODEL_FILE_NAME)
+
+    /** Absolute path of the VAD model if it is downloaded and plausibly complete, else null. */
+    val vadModelPath: String?
+        get() = if (isVadModelAvailable()) vadModelFile.absolutePath else null
+
+    fun isVadModelAvailable(): Boolean {
+        val f = vadModelFile
+        return f.exists() && f.length() >= VAD_MIN_VALID_BYTES
+    }
+
+    /**
+     * Downloads silero_vad.onnx if missing. Emits Progress / Completed / Error like [downloadTier].
+     */
+    fun downloadVadModel(): Flow<ModelDownloadState> = flow {
+        if (isVadModelAvailable()) {
+            emit(ModelDownloadState.Completed)
+            return@flow
+        }
+        emit(ModelDownloadState.Progress(0, VAD_MODEL_FILE_NAME))
+        val error = downloadVadModelOrError()
+        if (error == null) {
+            emit(ModelDownloadState.Progress(100, VAD_MODEL_FILE_NAME))
+            emit(ModelDownloadState.Completed)
+        } else {
+            emit(ModelDownloadState.Error(error))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /** Blocking best-effort VAD download; returns true if the model is available afterwards. */
+    fun downloadVadModelBlocking(): Boolean {
+        if (isVadModelAvailable()) return true
+        return downloadVadModelOrError() == null
+    }
+
+    /** @return null on success, otherwise an error message. Must run off the main thread. */
+    private fun downloadVadModelOrError(): String? {
+        if (!targetDir.exists()) targetDir.mkdirs()
+        val destFile = vadModelFile
+        val tempFile = File(targetDir, "$VAD_MODEL_FILE_NAME.tmp")
+        return try {
+            val conn = openConnectionWithRedirects(VAD_MODEL_URL)
+            try {
+                if (conn.responseCode !in 200..299) {
+                    return "Server returned code ${conn.responseCode} for $VAD_MODEL_FILE_NAME"
+                }
+                conn.inputStream.use { input ->
+                    FileOutputStream(tempFile).use { output -> input.copyTo(output) }
+                }
+            } finally {
+                conn.disconnect()
+            }
+            if (tempFile.length() < VAD_MIN_VALID_BYTES) {
+                tempFile.delete()
+                return "Downloaded $VAD_MODEL_FILE_NAME is truncated (${tempFile.length()} bytes)"
+            }
+            if (!tempFile.renameTo(destFile)) {
+                destFile.delete()
+                if (!tempFile.renameTo(destFile)) {
+                    tempFile.copyTo(destFile, overwrite = true)
+                    tempFile.delete()
+                }
+            }
+            null
+        } catch (e: Exception) {
+            tempFile.delete()
+            "Download failed for $VAD_MODEL_FILE_NAME: ${e.message}"
+        }
+    }
 }
+
+/** Silero VAD model published by sherpa-onnx (~630 KB). */
+const val VAD_MODEL_FILE_NAME = "silero_vad.onnx"
+const val VAD_MODEL_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
+/** Sanity floor used to reject truncated/HTML-error downloads. */
+const val VAD_MIN_VALID_BYTES = 100_000L
