@@ -138,12 +138,30 @@ fun DashboardScreen(
                             )
                         }
                         Column {
-                            Text(
-                                text = "SubBot",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp,
-                                color = TextPrimary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "SubBot",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = TextPrimary
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = CyanContainer,
+                                    border = BorderStroke(1.dp, CyanPrimary.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "v${com.subbot.BuildConfig.VERSION_NAME}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CyanPrimaryLight,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
                                 text = "On-Device Real-Time Subtitles",
                                 style = MaterialTheme.typography.labelSmall,
