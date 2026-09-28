@@ -287,7 +287,7 @@ class WhisperModelManager(val targetDir: File) {
                 val newUrl = conn.getHeaderField("Location")
                     ?: throw IOException("HTTP redirect received with no Location header")
                 conn.disconnect()
-                currentUrl = newUrl
+                currentUrl = URL(url, newUrl).toString() // resolve relative Location headers
                 redirects++
             } else {
                 return conn
