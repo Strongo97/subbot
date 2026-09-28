@@ -45,6 +45,14 @@ android {
         buildConfig = true
     }
 
+    sourceSets {
+        getByName("androidTest") {
+            // Reuse the JVM benchmark WAVs + manifest as assets of the test APK only (not the app APK)
+            // for the on-device STT benchmark (com.subbot.benchmark.OnDeviceSttBenchmarkTest).
+            assets.srcDir("src/test/resources/speech")
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -81,6 +89,9 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
