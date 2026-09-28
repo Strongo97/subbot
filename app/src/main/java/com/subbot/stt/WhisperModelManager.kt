@@ -8,7 +8,7 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOn
 
 sealed class ModelDownloadState {
     data class Progress(val progressPercent: Int, val currentFile: String) : ModelDownloadState()
@@ -64,63 +64,61 @@ class WhisperModelManager(val targetDir: File) {
     }
 
     fun downloadModel(): Flow<ModelDownloadState> = flow {
-        withContext(Dispatchers.IO) {
-            if (!targetDir.exists()) {
-                targetDir.mkdirs()
+        if (!targetDir.exists()) {
+            targetDir.mkdirs()
+        }
+
+        for ((index, fileName) in REQUIRED_FILES.withIndex()) {
+            val destFile = File(targetDir, fileName)
+            // If valid file already exists, skip
+            if (destFile.exists() && destFile.length() > 1000) {
+                val progress = ((index + 1) * 100) / REQUIRED_FILES.size
+                emit(ModelDownloadState.Progress(progress, fileName))
+                continue
             }
 
-            for ((index, fileName) in REQUIRED_FILES.withIndex()) {
-                val destFile = File(targetDir, fileName)
-                // If valid file already exists, skip
-                if (destFile.exists() && destFile.length() > 1000) {
-                    val progress = ((index + 1) * 100) / REQUIRED_FILES.size
-                    emit(ModelDownloadState.Progress(progress, fileName))
-                    continue
+            val tempFile = File(targetDir, "$fileName.tmp")
+            val fileUrl = "$BASE_URL/$fileName"
+
+            try {
+                val conn = openConnectionWithRedirects(fileUrl)
+                if (conn.responseCode !in 200..299) {
+                    emit(ModelDownloadState.Error("Server returned code ${conn.responseCode} for $fileName"))
+                    return@flow
                 }
 
-                val tempFile = File(targetDir, "$fileName.tmp")
-                val fileUrl = "$BASE_URL/$fileName"
+                val totalBytes = conn.contentLengthLong
+                var downloadedBytes = 0L
 
-                try {
-                    val conn = openConnectionWithRedirects(fileUrl)
-                    if (conn.responseCode !in 200..299) {
-                        emit(ModelDownloadState.Error("Server returned code ${conn.responseCode} for $fileName"))
-                        return@withContext
-                    }
-
-                    val totalBytes = conn.contentLengthLong
-                    var downloadedBytes = 0L
-
-                    conn.inputStream.use { input ->
-                        FileOutputStream(tempFile).use { output ->
-                            val buffer = ByteArray(8192)
-                            var read: Int
-                            while (input.read(buffer).also { read = it } != -1) {
-                                output.write(buffer, 0, read)
-                                downloadedBytes += read
-                                if (totalBytes > 0) {
-                                    val fileProgress = (downloadedBytes * 100) / totalBytes
-                                    val overallProgress = ((index * 100) + fileProgress) / REQUIRED_FILES.size
-                                    emit(ModelDownloadState.Progress(overallProgress.toInt(), fileName))
-                                }
+                conn.inputStream.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        val buffer = ByteArray(8192)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read
+                            if (totalBytes > 0) {
+                                val fileProgress = (downloadedBytes * 100) / totalBytes
+                                val overallProgress = ((index * 100) + fileProgress) / REQUIRED_FILES.size
+                                emit(ModelDownloadState.Progress(overallProgress.toInt(), fileName))
                             }
                         }
                     }
-
-                    if (!tempFile.renameTo(destFile)) {
-                        destFile.delete()
-                        if (!tempFile.renameTo(destFile)) {
-                            tempFile.copyTo(destFile, overwrite = true)
-                            tempFile.delete()
-                        }
-                    }
-                } catch (e: Exception) {
-                    tempFile.delete()
-                    emit(ModelDownloadState.Error("Download failed for $fileName: ${e.message}"))
-                    return@withContext
                 }
+
+                if (!tempFile.renameTo(destFile)) {
+                    destFile.delete()
+                    if (!tempFile.renameTo(destFile)) {
+                        tempFile.copyTo(destFile, overwrite = true)
+                        tempFile.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                tempFile.delete()
+                emit(ModelDownloadState.Error("Download failed for $fileName: ${e.message}"))
+                return@flow
             }
-            emit(ModelDownloadState.Completed)
         }
-    }
+        emit(ModelDownloadState.Completed)
+    }.flowOn(Dispatchers.IO)
 }
