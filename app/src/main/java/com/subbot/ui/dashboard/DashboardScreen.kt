@@ -109,6 +109,8 @@ fun DashboardScreen(
     onStopService: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val benchmarkState by viewModel.benchmarkState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -236,6 +238,12 @@ fun DashboardScreen(
                 onPositionChange = { viewModel.setPosition(it) },
                 onFontSizeChange = { viewModel.setFontSize(it) },
                 onBilingualToggle = { viewModel.toggleBilingual() }
+            )
+
+            // Multi-Language Benchmark & Performance Rating Card
+            MultiLanguageBenchmarkCard(
+                benchmarkState = benchmarkState,
+                onRunBenchmark = { viewModel.runSpeechBenchmark(context) }
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -1275,6 +1283,222 @@ private fun LanguageDropdown(
                         onSelect(lang.code)
                         expanded = false
                     }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Interactive Multi-Language Speech Benchmark card evaluating acoustic VAD,
+ * Whisper Real-Time Factor (RTF), and translation fidelity across bundled speech files.
+ */
+@Composable
+private fun MultiLanguageBenchmarkCard(
+    benchmarkState: com.subbot.benchmark.BenchmarkUiState,
+    onRunBenchmark: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkSurface),
+        border = BorderStroke(1.dp, DarkBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = "Benchmark",
+                        tint = CyanPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Multi-Language Benchmark",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+
+                if (benchmarkState.lastReport != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = CyanContainer,
+                        border = BorderStroke(1.dp, CyanPrimary.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "Score ${benchmarkState.lastReport.overallScore}/100",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanPrimaryLight,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (benchmarkState.isRunning) {
+                Text(
+                    text = "Testing: [${benchmarkState.currentLanguage}] ${benchmarkState.currentStep} (${benchmarkState.progressPercent}%)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = CyanPrimaryLight
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { benchmarkState.progressPercent / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = CyanPrimary,
+                    trackColor = DarkSurfaceElevated
+                )
+            } else if (benchmarkState.lastReport != null) {
+                val report = benchmarkState.lastReport
+
+                // Grade Banner
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkSurfaceElevated)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = report.grade,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldTertiary
+                        )
+                        Text(
+                            text = "Mean RTF: ${"%.3f".format(report.meanRealTimeFactor)}x • VAD: ${"%.2f".format(report.meanVadLatencyMs)}ms • Trans: ${report.meanTranslationLatencyMs}ms",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Button(
+                        onClick = onRunBenchmark,
+                        colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("Re-test", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Per-Language Results
+                report.languageResults.forEach { res ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(text = res.flagEmoji, fontSize = 16.sp)
+                            Column {
+                                Text(
+                                    text = res.languageName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Audio: ${"%.1f".format(res.durationSeconds)}s • RTF: ${"%.3f".format(res.realTimeFactor)} • Trans: ${res.translationLatencyMs}ms",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (res.passed) EmeraldTertiary.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (res.passed) "Passed ✓" else "Failed",
+                                color = if (res.passed) EmeraldTertiary else Color.Red,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = "Verify acoustic VAD, Whisper real-time factor (RTF), and translation fidelity against bundled speech files for English, Japanese, and Korean.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("🇺🇸 EN (7.2s)", "🇯🇵 JA (7.2s)", "🇰🇷 KO (4.6s)").forEach { chip ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurfaceElevated,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = chip,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = CyanPrimaryLight,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(vertical = 6.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onRunBenchmark,
+                    colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                ) {
+                    Text(
+                        text = "Run Multi-Language Benchmark",
+                        color = Color.Black,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (benchmarkState.errorMessage != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = benchmarkState.errorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }
