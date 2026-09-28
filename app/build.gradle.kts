@@ -67,7 +67,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.mlkit.translate)
-    implementation(libs.sherpa.onnx)
+    implementation(files("libs/sherpa-onnx-1.13.8.aar"))
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
