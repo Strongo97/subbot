@@ -82,16 +82,25 @@ class SubtitleOverlayManager(private val context: Context) {
 
     fun hideOverlay() {
         if (isAttached && composeView != null) {
-            lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-            lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-            lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-            try {
-                windowManager.removeView(composeView)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            val view = composeView
             composeView = null
             isAttached = false
+
+            try {
+                lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+                lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+                lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
+
+            try {
+                if (view != null && view.isAttachedToWindow) {
+                    windowManager.removeView(view)
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
         }
     }
 

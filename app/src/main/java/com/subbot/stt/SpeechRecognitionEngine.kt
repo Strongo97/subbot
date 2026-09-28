@@ -19,6 +19,8 @@ class SpeechRecognitionEngine(
     private val assetManager: AssetManager? = null
 ) {
     private var recognizer: OfflineRecognizer? = null
+    @Volatile private var isReleased = false
+    private val engineLock = Any()
 
     companion object {
         const val SAMPLE_RATE = 16000
@@ -133,6 +135,7 @@ class SpeechRecognitionEngine(
         var hasSpeech = false
 
         for (chunk in audioChannel) {
+            if (isReleased) break
             val rms = AudioUtils.calculateRmsDb(chunk)
             val isSilent = AudioUtils.isSilence(rms, thresholdDb = SILENCE_THRESHOLD_DB)
 
@@ -205,7 +208,7 @@ class SpeechRecognitionEngine(
         }
 
         // Flush remaining buffer if sufficient audio exists
-        if (buffer.size >= 8000) {
+        if (!isReleased && buffer.size >= 8000) {
             decodeAndEmit(rec, buffer.toFloatArray(), onUtterance)
             buffer.clear()
             chunkEnergies.clear()
@@ -217,26 +220,49 @@ class SpeechRecognitionEngine(
         samples: FloatArray,
         onUtterance: suspend (String) -> Unit
     ) {
+        if (isReleased) return
         if (samples.size < 8000) return // Skip tiny acoustic clicks (< 0.5s)
         val rms = AudioUtils.calculateRmsDb(samples)
         if (rms < -34.0f) return // Skip quiet background hiss / low BGM without vocal energy
 
-        val stream = rec.createStream()
-        try {
-            stream.acceptWaveform(samples, SAMPLE_RATE)
-            rec.decode(stream)
-            val rawText = rec.getResult(stream).text.trim()
-            val cleaned = cleanUtterance(rawText)
-            if (cleaned.isNotBlank() && !isHallucination(cleaned)) {
-                onUtterance(cleaned)
+        val cleaned = synchronized(engineLock) {
+            if (isReleased || recognizer == null) return
+            val stream = rec.createStream()
+            try {
+                stream.acceptWaveform(samples, SAMPLE_RATE)
+                rec.decode(stream)
+                val rawText = rec.getResult(stream).text.trim()
+                cleanUtterance(rawText)
+            } catch (e: Throwable) {
+                android.util.Log.e("SpeechRecognitionEngine", "Error during decode", e)
+                ""
+            } finally {
+                try {
+                    stream.release()
+                } catch (e: Throwable) {
+                    // Ignore
+                }
             }
-        } finally {
-            stream.release()
+        }
+
+        if (cleaned.isNotBlank() && !isHallucination(cleaned) && !isReleased) {
+            try {
+                onUtterance(cleaned)
+            } catch (e: Throwable) {
+                android.util.Log.e("SpeechRecognitionEngine", "Error in onUtterance", e)
+            }
         }
     }
 
     fun release() {
-        recognizer?.release()
-        recognizer = null
+        synchronized(engineLock) {
+            isReleased = true
+            try {
+                recognizer?.release()
+            } catch (e: Throwable) {
+                android.util.Log.e("SpeechRecognitionEngine", "Error releasing recognizer", e)
+            }
+            recognizer = null
+        }
     }
 }

@@ -33,6 +33,8 @@ class AudioCaptureManager {
     private var captureJob: Job? = null
     private var captureScope: CoroutineScope? = null
     private var channel: Channel<FloatArray>? = null
+    @Volatile private var isRecording = false
+    private val recordLock = Any()
 
     @SuppressLint("MissingPermission")
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -60,7 +62,10 @@ class AudioCaptureManager {
             .setAudioPlaybackCaptureConfig(captureConfig)
             .build()
 
-        audioRecord = record
+        synchronized(recordLock) {
+            audioRecord = record
+        }
+
         val audioChannel = Channel<FloatArray>(capacity = 64)
         channel = audioChannel
 
@@ -71,21 +76,32 @@ class AudioCaptureManager {
 
         val scope = CoroutineScope(Dispatchers.IO)
         captureScope = scope
+        isRecording = true
 
-        record.startRecording()
+        try {
+            record.startRecording()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureManager", "Failed to start AudioRecord recording", e)
+            audioChannel.close()
+            return audioChannel
+        }
 
         captureJob = scope.launch {
             val byteBuffer = ByteArray(SAMPLES_PER_CHUNK * 2)
             try {
-                while (isActive) {
-                    val bytesRead = record.read(byteBuffer, 0, byteBuffer.size)
-                    if (bytesRead > 0) {
+                while (isActive && isRecording) {
+                    val currentRecord = audioRecord ?: break
+                    if (currentRecord.recordingState != AudioRecord.RECORDSTATE_RECORDING) break
+                    val bytesRead = currentRecord.read(byteBuffer, 0, byteBuffer.size)
+                    if (bytesRead > 0 && isActive && isRecording) {
                         val sampleCount = bytesRead / 2
                         val floats = AudioUtils.pcm16ToNormalizedFloats(byteBuffer, sampleCount)
                         audioChannel.send(floats)
+                    } else if (bytesRead < 0) {
+                        break
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Channel closed or job cancelled
             } finally {
                 audioChannel.close()
@@ -96,20 +112,36 @@ class AudioCaptureManager {
     }
 
     fun stopCapture() {
+        isRecording = false
         captureJob?.cancel()
         captureJob = null
         captureScope?.cancel()
         captureScope = null
 
         try {
-            audioRecord?.stop()
-            audioRecord?.release()
-        } catch (e: Exception) {
-            // Ignore during release
+            channel?.close()
+        } catch (e: Throwable) {
+            // Ignore
         }
-        audioRecord = null
-
-        channel?.close()
         channel = null
+
+        synchronized(recordLock) {
+            val record = audioRecord
+            audioRecord = null
+            if (record != null) {
+                try {
+                    if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        record.stop()
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.e("AudioCaptureManager", "Error stopping AudioRecord", e)
+                }
+                try {
+                    record.release()
+                } catch (e: Throwable) {
+                    android.util.Log.e("AudioCaptureManager", "Error releasing AudioRecord", e)
+                }
+            }
+        }
     }
 }

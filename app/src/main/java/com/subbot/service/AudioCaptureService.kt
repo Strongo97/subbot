@@ -72,6 +72,8 @@ class AudioCaptureService : Service() {
     private var sourceLang: String = "en"
     private var targetLang: String = "es"
     private var isPaused = false
+    private var isStopping = false
+    private var mediaProjectionCallback: MediaProjection.Callback? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -142,11 +144,13 @@ class AudioCaptureService : Service() {
             val projection = projectionManager.getMediaProjection(resultCode, data)
             mediaProjection = projection
 
-            projection.registerCallback(object : MediaProjection.Callback() {
+            val callback = object : MediaProjection.Callback() {
                 override fun onStop() {
                     handleStop()
                 }
-            }, Handler(Looper.getMainLooper()))
+            }
+            mediaProjectionCallback = callback
+            projection.registerCallback(callback, Handler(Looper.getMainLooper()))
 
             val isTop = intent.getBooleanExtra(EXTRA_IS_TOP, false)
             val fontSizeName = intent.getStringExtra(EXTRA_FONT_SIZE)
@@ -251,6 +255,22 @@ class AudioCaptureService : Service() {
     }
 
     private fun handleStop() {
+        if (isStopping) return
+        isStopping = true
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.cancel(NotificationHelper.NOTIFICATION_ID)
+        } catch (e: Throwable) {
+            // Ignore
+        }
+
         stopSelf()
     }
 
@@ -264,19 +284,88 @@ class AudioCaptureService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isStopping = true
         setServiceActive(false)
-        pipelineJob?.cancel()
-        serviceScope.cancel()
 
-        overlayManager?.hideOverlay()
+        // 1. Hide and detach overlay view immediately
+        try {
+            overlayManager?.hideOverlay()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error hiding overlay", e)
+        }
         overlayManager = null
-        audioCaptureManager.stopCapture()
-        speechEngine?.release()
+
+        // 2. Stop audio capture and close channel to unblock pipeline stream
+        try {
+            audioCaptureManager.stopCapture()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error stopping audio capture", e)
+        }
+
+        // 3. Cancel pipeline coroutines
+        try {
+            pipelineJob?.cancel()
+            pipelineJob = null
+            serviceScope.cancel()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error cancelling serviceScope", e)
+        }
+
+        // 4. Safely release STT engine (synchronized against active decodes)
+        try {
+            speechEngine?.release()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error releasing speech engine", e)
+        }
         speechEngine = null
-        translationEngine.close()
-        mediaProjection?.stop()
+
+        // 5. Close translation engine
+        try {
+            translationEngine.close()
+        } catch (e: Throwable) {
+            android.util.Log.e("AudioCaptureService", "Error closing translation engine", e)
+        }
+
+        // 6. Unregister MediaProjection callback before stopping projection to prevent recursive stop
+        val callback = mediaProjectionCallback
+        mediaProjectionCallback = null
+        val projection = mediaProjection
         mediaProjection = null
-        subtitleQueue?.clear()
+
+        if (projection != null) {
+            if (callback != null) {
+                try {
+                    projection.unregisterCallback(callback)
+                } catch (e: Throwable) {
+                    // Ignore
+                }
+            }
+            try {
+                projection.stop()
+            } catch (e: Throwable) {
+                // Ignore
+            }
+        }
+
+        // 7. Clear subtitle queue and remove notification
+        try {
+            subtitleQueue?.clear()
+        } catch (e: Throwable) {
+            // Ignore
+        }
         subtitleQueue = null
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.cancel(NotificationHelper.NOTIFICATION_ID)
+        } catch (e: Throwable) {
+            // Ignore
+        }
     }
 }

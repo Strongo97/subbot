@@ -114,7 +114,13 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, AudioCaptureService::class.java).apply {
             action = AudioCaptureService.ACTION_STOP
         }
-        startService(intent)
+        try {
+            startService(intent)
+        } catch (e: Throwable) {
+            try {
+                stopService(Intent(this, AudioCaptureService::class.java))
+            } catch (ignored: Throwable) {}
+        }
         viewModel.setServiceRunning(false)
     }
 }

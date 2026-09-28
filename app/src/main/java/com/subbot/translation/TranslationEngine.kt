@@ -84,16 +84,25 @@ class TranslationEngine(
             return cached
         }
 
-        val translator = getOrCreateTranslator(sourceLang, targetLang)
-        val result = translator.translate(text).await()
-        cache.put(sourceLang, targetLang, text, result)
-        return result
+        return try {
+            val translator = getOrCreateTranslator(sourceLang, targetLang)
+            val result = translator.translate(text).await()
+            cache.put(sourceLang, targetLang, text, result)
+            result
+        } catch (e: Throwable) {
+            android.util.Log.e("TranslationEngine", "Translation failed or cancelled", e)
+            text
+        }
     }
 
     @Synchronized
     private fun getOrCreateTranslator(sourceLang: String, targetLang: String): Translator {
         if (activeTranslator == null || currentSourceLang != sourceLang || currentTargetLang != targetLang) {
-            activeTranslator?.close()
+            try {
+                activeTranslator?.close()
+            } catch (e: Throwable) {
+                // Ignore
+            }
             val options = TranslatorOptions.Builder()
                 .setSourceLanguage(sourceLang)
                 .setTargetLanguage(targetLang)
@@ -105,8 +114,13 @@ class TranslationEngine(
         return activeTranslator!!
     }
 
+    @Synchronized
     fun close() {
-        activeTranslator?.close()
+        try {
+            activeTranslator?.close()
+        } catch (e: Throwable) {
+            // Ignore during shutdown
+        }
         activeTranslator = null
         cache.clear()
     }
