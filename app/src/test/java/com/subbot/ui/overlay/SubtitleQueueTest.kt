@@ -71,4 +71,46 @@ class SubtitleQueueTest {
         queue.setListening(false)
         assertFalse(queue.uiState.value.isListening)
     }
+
+    @Test
+    fun testPostPendingOriginal_keepsVisibleTranslation() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        queue.postSubtitle(original = "田中です", translated = "I'm Tanaka")
+
+        queue.postPendingOriginal("昨日友達と映画を")
+        assertEquals("昨日友達と映画を", queue.uiState.value.originalText)
+        assertEquals("I'm Tanaka", queue.uiState.value.translatedText)
+        assertTrue(queue.uiState.value.isVisible)
+        advanceTimeBy(1100L)
+    }
+
+    @Test
+    fun testPostPendingOriginal_usesPlaceholderWhenNothingVisible() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        queue.postSubtitle(original = "old", translated = "stale")
+        advanceTimeBy(1100L)
+        assertFalse(queue.uiState.value.isVisible)
+
+        queue.postPendingOriginal("昨日友達と映画を")
+        assertEquals(SubtitleQueue.PENDING_PLACEHOLDER, queue.uiState.value.translatedText)
+        assertTrue(queue.uiState.value.isVisible)
+        advanceTimeBy(1100L)
+    }
+
+    @Test
+    fun testKeepAlive_extendsVisibleSubtitleOnly() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        queue.keepAlive()
+        assertFalse(queue.uiState.value.isVisible)
+
+        queue.postSubtitle(original = "", translated = "Hello")
+        advanceTimeBy(800L)
+        queue.keepAlive()
+        advanceTimeBy(800L)
+        assertTrue(queue.uiState.value.isVisible)
+        assertEquals("Hello", queue.uiState.value.translatedText)
+
+        advanceTimeBy(300L)
+        assertFalse(queue.uiState.value.isVisible)
+    }
 }
