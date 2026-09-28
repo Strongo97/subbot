@@ -229,4 +229,78 @@ class DashboardViewModelTest {
         )
         assertTrue(stateJapaneseToEnglish.isReadyToStart)
     }
+
+    @Test
+    fun testSenseVoiceTier_forcesGoogleNerAndHidesWhisperDirect() = runTest {
+        val viewModel = DashboardViewModel()
+        viewModel.setSourceLanguage("ko")
+        viewModel.setTranslationMode(com.subbot.translation.TranslationMode.WHISPER_DIRECT)
+
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.SENSE_VOICE)
+        val state = viewModel.uiState.value
+        org.junit.Assert.assertEquals(com.subbot.stt.WhisperModelTier.SENSE_VOICE, state.selectedSpeechModelTier)
+        org.junit.Assert.assertEquals(com.subbot.translation.TranslationMode.GOOGLE_NER, state.translationMode)
+        assertFalse(state.isWhisperDirectAvailable)
+
+        // Whisper Direct cannot be re-selected while SenseVoice is active
+        viewModel.setTranslationMode(com.subbot.translation.TranslationMode.WHISPER_DIRECT)
+        org.junit.Assert.assertEquals(com.subbot.translation.TranslationMode.GOOGLE_NER, viewModel.uiState.value.translationMode)
+    }
+
+    @Test
+    fun testSenseVoiceTier_rejectedForUnsupportedSourceLanguage() = runTest {
+        val viewModel = DashboardViewModel()
+        viewModel.setSourceLanguage("vi")
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.SENSE_VOICE)
+        org.junit.Assert.assertEquals(com.subbot.stt.WhisperModelTier.TINY, viewModel.uiState.value.selectedSpeechModelTier)
+        assertTrue(viewModel.uiState.value.statusMessage.contains("does not support"))
+    }
+
+    @Test
+    fun testSenseVoiceTier_fallsBackWhenSourceLanguageBecomesUnsupported() = runTest {
+        val viewModel = DashboardViewModel()
+        viewModel.setSourceLanguage("en")
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.SENSE_VOICE)
+
+        // Japanese is supported: SenseVoice stays selected (no auto-switch to Whisper Small)
+        viewModel.setSourceLanguage("ja")
+        org.junit.Assert.assertEquals(com.subbot.stt.WhisperModelTier.SENSE_VOICE, viewModel.uiState.value.selectedSpeechModelTier)
+
+        // Spanish is not: fall back to a Whisper tier (TINY when nothing is downloaded)
+        viewModel.setSourceLanguage("es")
+        org.junit.Assert.assertEquals(com.subbot.stt.WhisperModelTier.TINY, viewModel.uiState.value.selectedSpeechModelTier)
+        assertTrue(viewModel.uiState.value.isWhisperDirectAvailable)
+
+        // Swapping so that an unsupported language becomes the source also falls back
+        viewModel.setSourceLanguage("ja")
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.SENSE_VOICE)
+        viewModel.setTargetLanguage("vi")
+        viewModel.swapLanguages()
+        org.junit.Assert.assertEquals("vi", viewModel.uiState.value.sourceLanguage)
+        org.junit.Assert.assertEquals(com.subbot.stt.WhisperModelTier.TINY, viewModel.uiState.value.selectedSpeechModelTier)
+    }
+
+    @Test
+    fun testWhisperDirectWithTurbo_stillRequiresMLKitSourceModel() = runTest {
+        // Only English is downloaded in ML Kit; Japanese source model is missing.
+        val fakeEngine = object : com.subbot.translation.ITranslationEngine {
+            override suspend fun isModelDownloaded(langCode: String) = langCode == "en"
+            override fun downloadModel(langCode: String, requireWifi: Boolean) =
+                kotlinx.coroutines.flow.emptyFlow<com.subbot.translation.DownloadStatus>()
+            override suspend fun translate(text: String, sourceLang: String, targetLang: String) = text
+        }
+        val viewModel = DashboardViewModel(translationEngine = fakeEngine)
+        viewModel.setSourceLanguage("ja")
+        viewModel.setTargetLanguage("en")
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.BASE)
+        viewModel.setTranslationMode(com.subbot.translation.TranslationMode.WHISPER_DIRECT)
+        testScheduler.advanceUntilIdle()
+        // Base + Whisper Direct: Whisper translates itself, no ML Kit ja model needed.
+        assertTrue(viewModel.uiState.value.isSourceModelDownloaded)
+
+        // Turbo forces transcribe + ML Kit in the service, so the ja model is required.
+        viewModel.selectSpeechModelTier(com.subbot.stt.WhisperModelTier.TURBO)
+        testScheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isSourceModelDownloaded)
+    }
 }

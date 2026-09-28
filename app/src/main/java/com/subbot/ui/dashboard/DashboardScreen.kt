@@ -73,6 +73,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -211,6 +212,7 @@ fun DashboardScreen(
                 isBaseDownloaded = state.isBaseModelDownloaded,
                 isSmallDownloaded = state.isSmallModelDownloaded,
                 isTurboDownloaded = state.isTurboModelDownloaded,
+                isSenseVoiceDownloaded = state.isSenseVoiceModelDownloaded,
                 translationMode = state.translationMode,
                 isSpeechModelDownloaded = state.isSpeechModelDownloaded,
                 isDownloadingSpeechModel = state.isDownloadingSpeechModel,
@@ -524,6 +526,55 @@ private fun PermissionRowItem(
 }
 
 /**
+ * Selectable speech model tier chip. Disabled (dimmed) when the tier cannot recognize the source language.
+ */
+@Composable
+private fun SpeechTierChip(
+    tier: com.subbot.stt.WhisperModelTier,
+    isSelected: Boolean,
+    isDownloaded: Boolean,
+    isSupported: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        enabled = isSupported,
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) CyanContainer else DarkSurfaceElevated,
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) CyanPrimary else DarkBorder
+        ),
+        modifier = modifier.alpha(if (isSupported) 1f else 0.45f)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = tier.displayName.removePrefix("Whisper ").substringBefore(" ("),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) CyanPrimaryLight else TextPrimary,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            val supportedLangs = tier.supportedLanguages
+            Text(
+                text = when {
+                    !isSupported && supportedLangs != null -> "${supportedLangs.sorted().joinToString("/")} only"
+                    isDownloaded -> "Ready ✓"
+                    else -> "~${tier.approxSizeMb}MB"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isDownloaded && isSupported) EmeraldTertiary else TextSecondary
+            )
+        }
+    }
+}
+
+/**
  * Dual language selector with animated center swap / flip button and offline model status.
  */
 @Composable
@@ -535,6 +586,7 @@ private fun LanguageControlCard(
     isBaseDownloaded: Boolean,
     isSmallDownloaded: Boolean,
     isTurboDownloaded: Boolean,
+    isSenseVoiceDownloaded: Boolean,
     translationMode: com.subbot.translation.TranslationMode,
     isSpeechModelDownloaded: Boolean,
     isDownloadingSpeechModel: Boolean,
@@ -645,52 +697,48 @@ private fun LanguageControlCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             // Tier Selector Chips
+            fun isTierDownloaded(tier: com.subbot.stt.WhisperModelTier): Boolean = when (tier) {
+                com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
+                com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
+                com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
+                com.subbot.stt.WhisperModelTier.TURBO -> isTurboDownloaded
+                com.subbot.stt.WhisperModelTier.SENSE_VOICE -> isSenseVoiceDownloaded
+            }
+            val (whisperTiers, otherTiers) = com.subbot.stt.WhisperModelTier.values()
+                .partition { it.modelType == com.subbot.stt.SttModelType.WHISPER }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                com.subbot.stt.WhisperModelTier.values().forEach { tier ->
-                    val isSelected = tier == selectedTier
-                    val isTierDownloaded = when (tier) {
-                        com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
-                        com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
-                        com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
-                        com.subbot.stt.WhisperModelTier.TURBO -> isTurboDownloaded
-                    }
-                    Surface(
+                whisperTiers.forEach { tier ->
+                    SpeechTierChip(
+                        tier = tier,
+                        isSelected = tier == selectedTier,
+                        isDownloaded = isTierDownloaded(tier),
+                        isSupported = tier.supportsLanguage(sourceLang),
                         onClick = { onSelectTier(tier) },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) CyanContainer else DarkSurfaceElevated,
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) CyanPrimary else DarkBorder
-                        ),
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = tier.displayName.removePrefix("Whisper ").substringBefore(" ("),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) CyanPrimaryLight else TextPrimary,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (isTierDownloaded) "Ready ✓" else "~${tier.approxSizeMb}MB",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isTierDownloaded) EmeraldTertiary else TextSecondary
-                            )
-                        }
-                    }
+                    )
                 }
+            }
+            // Non-Whisper tiers (SenseVoice) get their own full-width row
+            otherTiers.forEach { tier ->
+                Spacer(modifier = Modifier.height(8.dp))
+                SpeechTierChip(
+                    tier = tier,
+                    isSelected = tier == selectedTier,
+                    isDownloaded = isTierDownloaded(tier),
+                    isSupported = tier.supportsLanguage(sourceLang),
+                    onClick = { onSelectTier(tier) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // Translation Mode Selector (Google NER vs Whisper Direct) when translating non-English
-            val canChooseTranslationMode = !sourceLang.equals("en", ignoreCase = true) && !sourceLang.equals(targetLang, ignoreCase = true)
+            // SenseVoice cannot translate acoustically, so Whisper Direct is hidden when it is selected
+            val canChooseTranslationMode = !sourceLang.equals("en", ignoreCase = true) &&
+                !sourceLang.equals(targetLang, ignoreCase = true) &&
+                selectedTier.modelType == com.subbot.stt.SttModelType.WHISPER
             if (canChooseTranslationMode) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
@@ -755,14 +803,13 @@ private fun LanguageControlCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Whisper STT Model Status
-            val isCurrentTierDownloaded = when (selectedTier) {
-                com.subbot.stt.WhisperModelTier.TINY -> isTinyDownloaded
-                com.subbot.stt.WhisperModelTier.BASE -> isBaseDownloaded
-                com.subbot.stt.WhisperModelTier.SMALL -> isSmallDownloaded
-                com.subbot.stt.WhisperModelTier.TURBO -> isTurboDownloaded
-            }
+            val isCurrentTierDownloaded = isTierDownloaded(selectedTier)
             ModelStatusRow(
-                title = "Whisper Engine (${selectedTier.displayName})",
+                title = if (selectedTier.modelType == com.subbot.stt.SttModelType.WHISPER) {
+                    "Whisper Engine (${selectedTier.displayName})"
+                } else {
+                    "Speech Engine (${selectedTier.displayName})"
+                },
                 isDownloaded = isCurrentTierDownloaded,
                 isDownloading = isDownloadingSpeechModel,
                 progress = speechModelProgress,

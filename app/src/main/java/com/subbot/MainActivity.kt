@@ -40,18 +40,12 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val state = viewModel.uiState.value
             val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper"))
-            val effectiveTier = if (whisperManager.isTierAvailable(state.selectedSpeechModelTier)) {
-                state.selectedSpeechModelTier
-            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.TURBO)) {
-                com.subbot.stt.WhisperModelTier.TURBO
-            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.SMALL)) {
-                com.subbot.stt.WhisperModelTier.SMALL
-            } else if (whisperManager.isTierAvailable(com.subbot.stt.WhisperModelTier.BASE)) {
-                com.subbot.stt.WhisperModelTier.BASE
-            } else {
-                com.subbot.stt.WhisperModelTier.TINY
-            }
-            val (encoderFile, decoderFile, tokensFile) = whisperManager.getModelFilesForTier(effectiveTier)
+            // Falls back to the largest downloaded Whisper tier when the selected tier is missing or
+            // does not support the source language (e.g. SenseVoice with Vietnamese).
+            val effectiveTier = whisperManager.resolveEffectiveTier(state.selectedSpeechModelTier, state.sourceLanguage)
+            val tierFiles = whisperManager.resolveTierFiles(effectiveTier)
+            val isSenseVoice = effectiveTier.modelType == com.subbot.stt.SttModelType.SENSE_VOICE
+            val translationMode = if (isSenseVoice) com.subbot.translation.TranslationMode.GOOGLE_NER else state.translationMode
 
             val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
                 action = AudioCaptureService.ACTION_START
@@ -62,10 +56,17 @@ class MainActivity : ComponentActivity() {
                 putExtra(AudioCaptureService.EXTRA_IS_BILINGUAL, state.isBilingual)
                 putExtra(AudioCaptureService.EXTRA_IS_TOP, state.isTopPosition)
                 putExtra(AudioCaptureService.EXTRA_FONT_SIZE, state.fontSize.name)
-                putExtra(AudioCaptureService.EXTRA_TRANSLATION_MODE, state.translationMode.id)
-                putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, encoderFile.absolutePath)
-                putExtra(AudioCaptureService.EXTRA_DECODER_PATH, decoderFile.absolutePath)
-                putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, tokensFile.absolutePath)
+                putExtra(AudioCaptureService.EXTRA_TRANSLATION_MODE, translationMode.id)
+                putExtra(AudioCaptureService.EXTRA_STT_MODEL_TYPE, effectiveTier.modelType.id)
+                putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, tierFiles.tokens.absolutePath)
+                if (isSenseVoice) {
+                    putExtra(AudioCaptureService.EXTRA_MODEL_PATH, tierFiles.model.absolutePath)
+                    // SenseVoice cannot translate; force transcription so ML Kit handles translation.
+                    putExtra(AudioCaptureService.EXTRA_TASK, "transcribe")
+                } else {
+                    putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, tierFiles.model.absolutePath)
+                    putExtra(AudioCaptureService.EXTRA_DECODER_PATH, tierFiles.decoder?.absolutePath)
+                }
             }
             ContextCompat.startForegroundService(this, serviceIntent)
             viewModel.setServiceRunning(true)
