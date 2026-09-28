@@ -22,6 +22,28 @@
     "referenceTranslationVi": "Xin chào, tôi là Tanaka. Hôm nay chúng tôi đang tiến hành thử nghiệm nhận dạng giọng nói và dịch thời gian thực."
   },
   {
+    "id": "ja_1",
+    "languageName": "Japanese",
+    "flagEmoji": "🇯🇵",
+    "audioFile": "ja_1.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 13.00,
+    "transcript": "日本語ちゃんと聞き取れてますかちゃんと聞こえてんのちゃんと聞こえてるのじゃあマイクを持ってもらって",
+    "referenceTranslationEn": "Can you hear Japanese properly? Can you hear me well? Can you hear it? Well then, please hold the microphone.",
+    "referenceTranslationVi": "Bạn có nghe rõ tiếng Nhật không? Có nghe rõ không? Nghe được chứ? Vậy thì hãy cầm micro lên."
+  },
+  {
+    "id": "ja_2",
+    "languageName": "Japanese",
+    "flagEmoji": "🇯🇵",
+    "audioFile": "ja_2.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 11.25,
+    "transcript": "これはテスト文ですこの機械が日本語をちゃんと聞き取れているかどうかを計ります",
+    "referenceTranslationEn": "This is a test sentence. It measures whether this machine can properly recognize Japanese.",
+    "referenceTranslationVi": "Đây là câu thử nghiệm. Nó đo lường liệu cỗ máy này có nhận dạng tốt tiếng Nhật hay không."
+  },
+  {
     "id": "ko",
     "languageName": "Korean",
     "flagEmoji": "🇰🇷",
@@ -31,5 +53,49 @@
     "transcript": "안녕하세요, 실시간 음성 번역 및 자막 성능 테스트를 진행합니다.",
     "referenceTranslationEn": "Hello, we are conducting a real-time speech translation and subtitle performance test.",
     "referenceTranslationVi": "Xin chào, chúng tôi đang tiến hành kiểm tra hiệu suất dịch giọng nói và phụ đề thời gian thực."
+  },
+  {
+    "id": "ko_0",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "ko_0.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 3.53,
+    "transcript": "그는 괜찮은 척하려고 애쓰는 것 같았다.",
+    "referenceTranslationEn": "He seemed to be trying hard to pretend he was okay.",
+    "referenceTranslationVi": "Anh ấy dường như đang cố gắng tỏ ra là mình ổn."
+  },
+  {
+    "id": "ko_1",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "ko_1.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 3.40,
+    "transcript": "지하철에서 다리를 벌리고 앉지 마라.",
+    "referenceTranslationEn": "Do not sit with your legs spread wide on the subway.",
+    "referenceTranslationVi": "Đừng ngồi dạng chân trên tàu điện ngầm."
+  },
+  {
+    "id": "ko_2",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "ko_2.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 6.63,
+    "transcript": "부모가 저지르는 큰 실수 중 하나는 자기 아이를 다른 집 아이와 비교하는 것이다.",
+    "referenceTranslationEn": "One of the big mistakes parents make is comparing their child to other children.",
+    "referenceTranslationVi": "Một trong những sai lầm lớn của cha mẹ là so sánh con mình với con nhà người ta."
+  },
+  {
+    "id": "ko_3",
+    "languageName": "Korean",
+    "flagEmoji": "🇰🇷",
+    "audioFile": "ko_3.wav",
+    "sampleRate": 16000,
+    "durationSeconds": 2.68,
+    "transcript": "주민등록증을 보여 주시겠어요?",
+    "referenceTranslationEn": "Could you please show your resident registration card?",
+    "referenceTranslationVi": "Bạn có thể cho tôi xem thẻ chứng minh nhân dân được không?"
   }
 ]

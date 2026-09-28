@@ -81,67 +81,10 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
-    private val _benchmarkState = MutableStateFlow(com.subbot.benchmark.BenchmarkUiState())
-    val benchmarkState: StateFlow<com.subbot.benchmark.BenchmarkUiState> = _benchmarkState.asStateFlow()
-
-    private val benchmarkEngine by lazy {
-        com.subbot.benchmark.BenchmarkEngine(engine)
-    }
-
     init {
         viewModelScope.launch {
             com.subbot.service.AudioCaptureService.isServiceActive.collect { active ->
                 _uiState.update { it.copy(isServiceRunning = active) }
-            }
-        }
-    }
-
-    fun runSpeechBenchmark(context: Context) {
-        if (_benchmarkState.value.isRunning) return
-        viewModelScope.launch {
-            _benchmarkState.update {
-                it.copy(
-                    isRunning = true,
-                    progressPercent = 0,
-                    currentLanguage = "Initializing",
-                    currentStep = "Loading speech manifest",
-                    errorMessage = null
-                )
-            }
-            try {
-                val manifestJson = context.assets.open("benchmark/benchmark_manifest.json")
-                    .bufferedReader().use { it.readText() }
-                val items = com.subbot.benchmark.BenchmarkEngine.parseManifest(manifestJson)
-
-                val report = benchmarkEngine.runBenchmark(
-                    manifestItems = items,
-                    audioProvider = { filename -> context.assets.open("benchmark/$filename") },
-                    targetLang = _uiState.value.targetLanguage,
-                    onProgress = { lang, step, percent ->
-                        _benchmarkState.update {
-                            it.copy(
-                                currentLanguage = lang,
-                                currentStep = step,
-                                progressPercent = percent
-                            )
-                        }
-                    }
-                )
-
-                _benchmarkState.update {
-                    it.copy(
-                        isRunning = false,
-                        progressPercent = 100,
-                        lastReport = report
-                    )
-                }
-            } catch (e: Throwable) {
-                _benchmarkState.update {
-                    it.copy(
-                        isRunning = false,
-                        errorMessage = "Benchmark error: ${e.localizedMessage}"
-                    )
-                }
             }
         }
     }

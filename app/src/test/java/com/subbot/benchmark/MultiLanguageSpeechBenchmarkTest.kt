@@ -16,15 +16,22 @@ class MultiLanguageSpeechBenchmarkTest {
     }
 
     @Test
-    fun testManifestParsing_parsesAllThreeLanguages() {
+    fun testManifestParsing_parsesAllLanguagesAndSpeechSamples() {
         val json = getResourceStream("benchmark_manifest.json").bufferedReader().use { it.readText() }
         val items = BenchmarkEngine.parseManifest(json)
 
-        assertEquals("Must contain 3 benchmark speech items (EN, JA, KO)", 3, items.size)
-        val ids = items.map { it.id }
-        assertTrue("Must contain English", ids.contains("en"))
-        assertTrue("Must contain Japanese", ids.contains("ja"))
-        assertTrue("Must contain Korean", ids.contains("ko"))
+        assertEquals("Must contain 9 benchmark speech items across EN, JA, and KO", 9, items.size)
+        val ids = items.map { it.id }.toSet()
+        val expectedIds = setOf("en", "ja", "ja_1", "ja_2", "ko", "ko_0", "ko_1", "ko_2", "ko_3")
+        assertEquals(expectedIds, ids)
+
+        val languages = items.groupBy { it.languageName }
+        assertTrue("Must include English speech samples", languages.containsKey("English"))
+        assertTrue("Must include Japanese speech samples", languages.containsKey("Japanese"))
+        assertTrue("Must include Korean speech samples", languages.containsKey("Korean"))
+
+        assertEquals("Must have 3 Japanese speech samples", 3, languages["Japanese"]?.size)
+        assertEquals("Must have 5 Korean speech samples", 5, languages["Korean"]?.size)
 
         items.forEach { item ->
             assertTrue("Duration must be positive for ${item.id}", item.durationSeconds > 1.0)
@@ -36,7 +43,17 @@ class MultiLanguageSpeechBenchmarkTest {
 
     @Test
     fun testWavPcmExtraction_loadsValidAudioSamples() {
-        val wavFiles = listOf("en.wav", "ja.wav", "ko.wav")
+        val wavFiles = listOf(
+            "en.wav",
+            "ja.wav",
+            "ja_1.wav",
+            "ja_2.wav",
+            "ko.wav",
+            "ko_0.wav",
+            "ko_1.wav",
+            "ko_2.wav",
+            "ko_3.wav"
+        )
         for (wavName in wavFiles) {
             val stream = getResourceStream(wavName)
             val samples = BenchmarkEngine.parseWavToNormalizedFloats(stream)
@@ -46,8 +63,8 @@ class MultiLanguageSpeechBenchmarkTest {
             // Verify samples are normalized in [-1.0, 1.0]
             val maxSample = samples.maxOrNull() ?: 0f
             val minSample = samples.minOrNull() ?: 0f
-            assertTrue("Max sample must be <= 1.0f", maxSample <= 1.0f)
-            assertTrue("Min sample must be >= -1.0f", minSample >= -1.0f)
+            assertTrue("Max sample must be <= 1.0f in $wavName", maxSample <= 1.0f)
+            assertTrue("Min sample must be >= -1.0f in $wavName", minSample >= -1.0f)
         }
     }
 
@@ -77,7 +94,7 @@ class MultiLanguageSpeechBenchmarkTest {
         )
 
         assertNotNull(report)
-        assertEquals(3, report.languageResults.size)
+        assertEquals(9, report.languageResults.size)
         assertTrue("Report must be real-time capable (RTF < 1.0)", report.isRealTimeCapable)
         assertTrue("Overall score must be >= 85 (Grade A or A+)", report.overallScore >= 85)
         assertTrue("VAD latency must be fast (< 2.0ms per chunk)", report.meanVadLatencyMs < 2.0)
@@ -85,11 +102,12 @@ class MultiLanguageSpeechBenchmarkTest {
 
         println("=== Benchmark Performance Scorecard ===")
         println("Overall Score: ${report.overallScore}/100 [Grade: ${report.grade}]")
+        println("Total Speech Duration: ${"%.2f".format(report.totalAudioDurationSec)}s across ${report.languageResults.size} samples")
         println("Mean RTF: ${"%.3f".format(report.meanRealTimeFactor)} (Real-Time Capable: ${report.isRealTimeCapable})")
         println("Mean VAD Latency: ${"%.3f".format(report.meanVadLatencyMs)} ms/chunk")
         println("Mean Translation Latency: ${report.meanTranslationLatencyMs} ms")
         report.languageResults.forEach { res ->
-            println("  ${res.flagEmoji} ${res.languageName}: Audio=${"%.1f".format(res.durationSeconds)}s, RTF=${"%.3f".format(res.realTimeFactor)}, Similarity=${res.similarityScore}%, Passed=${res.passed}")
+            println("  ${res.flagEmoji} [${res.languageId}] ${res.languageName}: Audio=${"%.1f".format(res.durationSeconds)}s, RTF=${"%.3f".format(res.realTimeFactor)}, Similarity=${res.similarityScore}%, Passed=${res.passed}")
         }
     }
 }
