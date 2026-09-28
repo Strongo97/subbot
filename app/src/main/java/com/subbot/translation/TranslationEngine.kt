@@ -24,6 +24,12 @@ interface ITranslationEngine {
     suspend fun isModelDownloaded(langCode: String): Boolean
     fun downloadModel(langCode: String, requireWifi: Boolean = false): Flow<DownloadStatus>
     suspend fun translate(text: String, sourceLang: String, targetLang: String): String
+
+    /**
+     * Pre-loads the translator for [sourceLang] -> [targetLang] so the first real subtitle does not
+     * pay the model-load latency. Must never throw. Default: no-op (fakes / engines without warm-up).
+     */
+    suspend fun warmUp(sourceLang: String, targetLang: String) {}
 }
 
 /**
@@ -32,6 +38,10 @@ interface ITranslationEngine {
 class TranslationEngine(
     private val cache: TranslationCache = TranslationCache()
 ) : ITranslationEngine {
+    private companion object {
+        const val WARM_UP_TEXT = "Hello."
+    }
+
     private val modelManager = RemoteModelManager.getInstance()
     private var activeTranslator: Translator? = null
     private var currentSourceLang: String? = null
@@ -92,6 +102,26 @@ class TranslationEngine(
         } catch (e: Throwable) {
             android.util.Log.e("TranslationEngine", "Translation failed or cancelled", e)
             text
+        }
+    }
+
+    /**
+     * Creates the ML Kit translator and runs one tiny dummy translation to force the on-device model
+     * into memory. The result is discarded and never cached. Errors (e.g. model not downloaded) are
+     * swallowed: the real translate() path handles them as before.
+     */
+    override suspend fun warmUp(sourceLang: String, targetLang: String) {
+        if (sourceLang.isBlank() || targetLang.isBlank() || sourceLang.equals(targetLang, ignoreCase = true)) return
+        try {
+            val start = System.currentTimeMillis()
+            getOrCreateTranslator(sourceLang, targetLang).translate(WARM_UP_TEXT).await()
+            android.util.Log.i(
+                "TranslationEngine",
+                "Warmed up $sourceLang->$targetLang in ${System.currentTimeMillis() - start}ms"
+            )
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            android.util.Log.w("TranslationEngine", "Warm-up $sourceLang->$targetLang failed (ignored)", e)
         }
     }
 

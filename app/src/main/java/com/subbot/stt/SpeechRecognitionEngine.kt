@@ -30,55 +30,155 @@ class SpeechRecognitionEngine(
         const val MAX_BUFFER_SAMPLES = 96000 // ~6.0s maximum buffer before energy split
         const val SILENCE_THRESHOLD_DB = -40.0f // Filter out quiet ambient noise, hiss, and video BGM
 
-        val KNOWN_HALLUCINATIONS = setOf(
+        /**
+         * Segment RMS (dBFS) below which a "suspicious" phrase (see [SUSPICIOUS_PHRASES]) is treated
+         * as a hallucination. Whisper tends to invent "Thank you." / 「お疲れ様でした」 on quiet tails,
+         * BGM and room tone; genuine dialogue carrying those words is usually well above -30 dB
+         * (decodeAndEmit already drops whole segments below -34 dB).
+         */
+        const val SUSPICIOUS_PHRASE_MAX_RMS_DB = -30.0f
+
+        /**
+         * Near-certain Whisper artifacts (YouTube outros / subtitle credits learned from training data).
+         * An utterance is rejected unconditionally when, after [normalizeForMatch], it consists
+         * entirely of one or more of these phrases.
+         */
+        val ARTIFACT_PHRASES: Set<String> = setOf(
+            // Japanese outros
             "ご視聴ありがとうございました",
+            "ご視聴ありがとうございます",
             "ご視聴いただきありがとうございました",
+            "ご視聴いただきありがとうございます",
             "視聴ありがとうございました",
+            "最後までご視聴ありがとうございました",
+            "最後までご視聴いただきありがとうございました",
+            "ご覧いただきありがとうございました",
             "ご覧いただきありがとうございます",
-            "動画をご視聴いただき",
+            "動画をご覧いただきありがとうございました",
             "チャンネル登録",
             "チャンネル登録よろしく",
+            "チャンネル登録よろしくお願いします",
             "チャンネル登録お願いします",
-            "高評価チャンネル登録",
-            "お疲れ様でした",
-            "おやすみなさい",
-            "最後までご視聴",
+            "チャンネル登録をお願いします",
+            "チャンネル登録をよろしくお願いします",
+            "高評価チャンネル登録よろしくお願いします",
+            "高評価とチャンネル登録よろしくお願いします",
+            "高評価チャンネル登録お願いします",
+            // Korean outro
+            "시청해주셔서 감사합니다",
+            // English outros / credits
             "thank you for watching",
             "thanks for watching",
             "thank you very much for watching",
-            "thank you",
+            "thank you so much for watching",
             "please subscribe",
             "like and subscribe",
+            "please like and subscribe",
+            "don't forget to like and subscribe",
             "subtitles by",
-            "amara.org",
+            "subtitles by the amara.org community",
             "translated by"
         )
 
         /**
-         * Cleans trailing ellipses, leading dashes, blank prompt tags, and formatting artifacts.
+         * Substrings that never occur in real dialogue; any utterance containing one is rejected.
+         */
+        val ARTIFACT_MARKERS: Set<String> = setOf("amara.org")
+
+        /**
+         * Phrases Whisper often hallucinates on quiet audio but that real dialogue also uses
+         * (anime/drama greetings, thanks). Rejected only when the utterance consists entirely of
+         * these (or artifact) phrases AND the segment RMS is below [SUSPICIOUS_PHRASE_MAX_RMS_DB].
+         */
+        val SUSPICIOUS_PHRASES: Set<String> = setOf(
+            "you",
+            "thank you",
+            "thank you very much",
+            "thank you so much",
+            "thanks",
+            "bye",
+            "bye bye",
+            "ありがとうございました",
+            "ありがとうございます",
+            "ご清聴ありがとうございました",
+            "お疲れ様でした",
+            "お疲れ様です",
+            "おやすみなさい"
+        )
+
+        private val MATCH_STRIP_REGEX = Regex("[\\p{P}\\p{S}\\p{Z}\\s]+")
+        private val normalizedArtifacts by lazy { ARTIFACT_PHRASES.map(::normalizeForMatch).toSet() }
+        private val normalizedMarkers by lazy { ARTIFACT_MARKERS.map(::normalizeForMatch).toSet() }
+        private val normalizedSuspiciousOrArtifacts by lazy {
+            (SUSPICIOUS_PHRASES + ARTIFACT_PHRASES).map(::normalizeForMatch).toSet()
+        }
+
+        /** Lowercases and strips whitespace, punctuation and symbols (incl. 。、！？「」～♪). */
+        fun normalizeForMatch(text: String): String =
+            text.lowercase().replace(MATCH_STRIP_REGEX, "")
+
+        /** True when [text] can be segmented entirely into phrases from [phrases] (word-break DP). */
+        private fun isComposedOf(text: String, phrases: Set<String>): Boolean {
+            if (text.isEmpty()) return false
+            val reachable = BooleanArray(text.length + 1)
+            reachable[0] = true
+            for (i in text.indices) {
+                if (!reachable[i]) continue
+                for (p in phrases) {
+                    if (p.isNotEmpty() && text.startsWith(p, i)) reachable[i + p.length] = true
+                }
+            }
+            return reachable[text.length]
+        }
+
+        private val LEADING_TAGS_REGEX = Regex("^(?:\\s*\\[[^\\]]*\\])+")
+        private val INLINE_TAG_REGEX = Regex("\\[[A-Z_ ]+\\]")
+        private val LEADING_JUNK_REGEX = Regex("^[\\s.,，…—–\\-~～。、!?！？・]+")
+        // Trailing whitespace, commas, 、, dashes, tildes and ellipses ("...", "…", "。。。").
+        // A single trailing sentence-final mark (. ! ? 。 ！ ？) is kept for sentence aggregation.
+        private val TRAILING_JUNK_REGEX = Regex("(?:[\\s,，、…—–\\-~～]|\\.{2,}|。{2,})+$")
+        private val INTERNAL_DOTS_REGEX = Regex("\\.{2,}")
+
+        /**
+         * Removes [BLANK_AUDIO]/[MUSIC]-style tags, leading punctuation/dashes/ellipses and trailing
+         * ellipses/dashes/tildes/commas, while keeping trailing sentence-final punctuation
+         * (`. ! ? 。 ！ ？`) so downstream consumers can detect sentence boundaries.
          */
         fun cleanUtterance(raw: String): String {
             return raw
-                .replace(Regex("^\\[.*?\\]"), "") // remove [BLANK_AUDIO] or [MUSIC]
-                .replace(Regex("^[\\s.,…—\\-~。、]+"), "") // remove leading punctuation, ellipses, dashes
-                .replace(Regex("[\\s.,…—\\-~。、]+$"), "") // remove trailing ellipses, periods, dashes
-                .replace(Regex("\\.{2,}"), ".") // replace multiple internal dots with single period
+                .replace(LEADING_TAGS_REGEX, "") // remove leading [BLANK_AUDIO] / [MUSIC]
+                .replace(INLINE_TAG_REGEX, " ") // remove inline/trailing [MUSIC]-style tags
+                .replace(LEADING_JUNK_REGEX, "")
+                .replace(TRAILING_JUNK_REGEX, "")
+                .replace(INTERNAL_DOTS_REGEX, ".") // collapse internal "..." to a single period
                 .trim()
         }
 
+        // Repetition loops. Only letters (incl. kana/kanji) count, so numbers such as "100000"
+        // and emphatic punctuation never trigger; pure-punctuation text is caught by the length check.
+        private val REPEATED_CHAR_REGEX = Regex("(\\p{L})\\1{4,}") // "ああああああ" (5+), not "ははは"
+        private val REPEATED_BIGRAM_REGEX = Regex("(\\p{L}{2})\\1{3,}") // "hahahaha" (4+), not "hahaha"
+        private val REPEATED_WORD_REGEX = Regex("(?i)\\b(\\w+)(\\s+\\1){3,}\\b") // "you you you you", not "no no no"
+
         /**
          * Detects common Whisper hallucination artifacts generated on silence, background music, or noise.
+         *
+         * @param segmentRmsDb RMS level (dBFS) of the decoded audio segment, if known. Suspicious-but-
+         *   plausible phrases ("Thank you.", 「お疲れ様でした」) are rejected only when this is below
+         *   [SUSPICIOUS_PHRASE_MAX_RMS_DB]; when null they are kept so real dialogue is not dropped.
          */
-        fun isHallucination(text: String): Boolean {
-            val lower = text.lowercase().trim()
-            if (lower.length <= 1) return true
-            // Check known phantom Whisper hallucination phrases on quiet/music segments
-            if (KNOWN_HALLUCINATIONS.any { lower.contains(it) } && lower.length < 50) return true
-            // Check for repeated character sequences (e.g. "ああああああ" or "you you you")
-            if (Regex("(.)\\1{4,}").containsMatchIn(text)) return true
-            if (Regex("(.{2})\\1{3,}").containsMatchIn(text)) return true
-            // Check for repeated words (e.g. "you you you you")
-            if (Regex("(?i)\\b(\\w+)(\\s+\\1){3,}\\b").containsMatchIn(text)) return true
+        fun isHallucination(text: String, segmentRmsDb: Float? = null): Boolean {
+            val normalized = normalizeForMatch(text)
+            if (normalized.length <= 1) return true
+            if (normalizedMarkers.any { normalized.contains(it) }) return true
+            if (isComposedOf(normalized, normalizedArtifacts)) return true
+            if (segmentRmsDb != null && segmentRmsDb < SUSPICIOUS_PHRASE_MAX_RMS_DB &&
+                isComposedOf(normalized, normalizedSuspiciousOrArtifacts)
+            ) return true
+            val lower = text.lowercase()
+            if (REPEATED_CHAR_REGEX.containsMatchIn(lower)) return true
+            if (REPEATED_BIGRAM_REGEX.containsMatchIn(lower)) return true
+            if (REPEATED_WORD_REGEX.containsMatchIn(lower)) return true
             return false
         }
     }

@@ -78,7 +78,9 @@ class SpeechRecognitionConfigTest {
         assertTrue(SpeechRecognitionEngine.isHallucination("チャンネル登録よろしくお願いします"))
         assertTrue(SpeechRecognitionEngine.isHallucination("Thank you for watching."))
         assertTrue(SpeechRecognitionEngine.isHallucination("Subtitles by amara.org"))
-        assertTrue(SpeechRecognitionEngine.isHallucination("お疲れ様でした"))
+        // Ambiguous phrases real dialogue uses are kept unless the segment was quiet
+        assertFalse(SpeechRecognitionEngine.isHallucination("お疲れ様でした"))
+        assertTrue(SpeechRecognitionEngine.isHallucination("お疲れ様でした", segmentRmsDb = -33f))
 
         // Repetitive character sequences
         assertTrue(SpeechRecognitionEngine.isHallucination("ああああああ"))

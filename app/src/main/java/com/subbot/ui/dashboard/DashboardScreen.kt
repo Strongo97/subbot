@@ -742,7 +742,7 @@ private fun LanguageControlCard(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (mode == com.subbot.translation.TranslationMode.GOOGLE_NER) "Names & Honorifics" else "Direct Acoustic",
+                                    text = if (mode == com.subbot.translation.TranslationMode.GOOGLE_NER) "Names & Honorifics" else if (selectedTier == com.subbot.stt.WhisperModelTier.TURBO) "Turbo: uses ML Kit" else "Direct Acoustic",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (isModeSelected) CyanPrimaryLight else TextSecondary
                                 )

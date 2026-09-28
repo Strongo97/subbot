@@ -167,10 +167,28 @@ class AudioCaptureService : Service() {
             val translationMode = com.subbot.translation.TranslationMode.fromId(translationModeStr)
 
             val preferredTask = intent.getStringExtra(EXTRA_TASK)
-            val sttTask = preferredTask ?: if (translationMode == com.subbot.translation.TranslationMode.WHISPER_DIRECT && sourceLang != "en" && targetLang != sourceLang) {
+            val requestedTask = preferredTask ?: if (translationMode == com.subbot.translation.TranslationMode.WHISPER_DIRECT && sourceLang != "en" && targetLang != sourceLang) {
                 "translate"
             } else {
                 "transcribe"
+            }
+            // large-v3-turbo was fine-tuned on transcription only; its translate task is poor,
+            // so always transcribe and let ML Kit translate.
+            val sttTask = if (requestedTask == "translate" && encoderPath.contains("turbo", ignoreCase = true)) {
+                android.util.Log.i("AudioCaptureService", "Turbo encoder: forcing task=transcribe (ML Kit translation) instead of Whisper translate")
+                "transcribe"
+            } else {
+                requestedTask
+            }
+
+            // Pre-load the ML Kit translator in parallel with the Whisper model load so the first
+            // subtitle is not delayed. Whisper translate emits English, so warm up en->target then.
+            val warmUpSource = if (sttTask == "translate") "en" else sourceLang
+            if (!warmUpSource.equals(targetLang, ignoreCase = true)) {
+                val warmUpTarget = targetLang
+                serviceScope.launch(Dispatchers.Default) {
+                    translationEngine.warmUp(warmUpSource, warmUpTarget)
+                }
             }
 
             // Initialize STT engine with 4 threads and optimal task (128 mels for Turbo/Large, 80 for Tiny/Base/Small)
