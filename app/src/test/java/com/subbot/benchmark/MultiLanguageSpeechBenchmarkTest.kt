@@ -78,7 +78,7 @@ class MultiLanguageSpeechBenchmarkTest {
     }
 
     @Test
-    fun testRunBenchmark_producesHighPerformanceScorecard() = runTest {
+    fun testRunBenchmark_evaluatesRealisticAcousticsAndInferenceMetrics() = runTest {
         val json = getResourceStream("benchmark_manifest.json").bufferedReader().use { it.readText() }
         val items = BenchmarkEngine.parseManifest(json)
         val engine = BenchmarkEngine(translationEngine = null)
@@ -96,18 +96,28 @@ class MultiLanguageSpeechBenchmarkTest {
         assertNotNull(report)
         assertEquals(9, report.languageResults.size)
         assertTrue("Report must be real-time capable (RTF < 1.0)", report.isRealTimeCapable)
-        assertTrue("Overall score must be >= 85 (Grade A or A+)", report.overallScore >= 85)
-        assertTrue("VAD latency must be fast (< 2.0ms per chunk)", report.meanVadLatencyMs < 2.0)
+        assertTrue("Mean RTF must be between 0.15 and 0.45", report.meanRealTimeFactor in 0.15..0.45)
+        assertTrue("VAD latency must be fast (< 0.5ms per chunk)", report.meanVadLatencyMs < 0.5)
+        assertTrue("Overall score must reflect real performance (>= 70)", report.overallScore >= 70)
         assertTrue("Progress callbacks must have fired", progressUpdates.isNotEmpty())
 
-        println("=== Benchmark Performance Scorecard ===")
+        // Verify that RTF and similarity scores vary across audio samples (not hardcoded identical values)
+        val distinctRtfs = report.languageResults.map { it.realTimeFactor }.toSet()
+        assertTrue("RTF must vary across different audio samples", distinctRtfs.size > 3)
+
+        val distinctSims = report.languageResults.map { it.similarityScore }.toSet()
+        assertTrue("Similarity score must vary across different samples and languages", distinctSims.size > 3)
+
+        println("=== Real Benchmark Performance Scorecard ===")
         println("Overall Score: ${report.overallScore}/100 [Grade: ${report.grade}]")
         println("Total Speech Duration: ${"%.2f".format(report.totalAudioDurationSec)}s across ${report.languageResults.size} samples")
         println("Mean RTF: ${"%.3f".format(report.meanRealTimeFactor)} (Real-Time Capable: ${report.isRealTimeCapable})")
         println("Mean VAD Latency: ${"%.3f".format(report.meanVadLatencyMs)} ms/chunk")
-        println("Mean Translation Latency: ${report.meanTranslationLatencyMs} ms")
+        println("Mean Similarity: ${"%.1f".format(report.meanSimilarityScore)}%")
+        println("Per-Sample Details:")
         report.languageResults.forEach { res ->
-            println("  ${res.flagEmoji} [${res.languageId}] ${res.languageName}: Audio=${"%.1f".format(res.durationSeconds)}s, RTF=${"%.3f".format(res.realTimeFactor)}, Similarity=${res.similarityScore}%, Passed=${res.passed}")
+            println("  ${res.flagEmoji} [${res.languageId}] ${res.languageName}: Audio=${"%.1f".format(res.durationSeconds)}s, RTF=${"%.3f".format(res.realTimeFactor)} (${"%.1f".format(1.0 / res.realTimeFactor)}x realtime), Speech=${"%.1f".format(res.speechActivityPercent)}%, Peak=${"%.1f".format(res.peakDbfs)}dBFS, Sim=${res.similarityScore}%, Passed=${res.passed}")
+            println("     Model: \"${res.transcribedText}\"")
         }
     }
 }

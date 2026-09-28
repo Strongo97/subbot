@@ -16,7 +16,7 @@ data class SpeechBenchmarkItem(
 )
 
 /**
- * Results for a single language in the benchmark.
+ * Results for a single language audio sample in the benchmark.
  */
 data class LanguageBenchmarkResult(
     val languageId: String,
@@ -31,7 +31,10 @@ data class LanguageBenchmarkResult(
     val transcribedText: String,
     val translatedText: String,
     val similarityScore: Int, // 0 - 100%
-    val passed: Boolean
+    val passed: Boolean,
+    val speechActivityPercent: Double = 0.0,
+    val peakDbfs: Float = 0.0f,
+    val snrDb: Float = 0.0f
 )
 
 /**
@@ -39,12 +42,13 @@ data class LanguageBenchmarkResult(
  */
 data class BenchmarkReport(
     val overallScore: Int, // 0 - 100
-    val grade: String,     // "S (Studio)", "A+ (Excellent)", "A (Good)", "B (Acceptable)", "C (Needs Optimization)"
+    val grade: String,     // "A+ (Studio Quality)", "A (Real-Time Excellent)", "B+ (Good Performance)", "B (Acceptable)"
     val totalAudioDurationSec: Double,
     val totalElapsedMs: Long,
     val meanRealTimeFactor: Double,
     val meanVadLatencyMs: Double,
     val meanTranslationLatencyMs: Long,
+    val meanSimilarityScore: Double,
     val languageResults: List<LanguageBenchmarkResult>,
     val timestamp: Long = System.currentTimeMillis()
 ) {
@@ -62,15 +66,3 @@ data class BenchmarkReport(
         }
     }
 }
-
-/**
- * Live UI state for the benchmark execution card.
- */
-data class BenchmarkUiState(
-    val isRunning: Boolean = false,
-    val currentLanguage: String = "",
-    val currentStep: String = "",
-    val progressPercent: Int = 0,
-    val lastReport: BenchmarkReport? = null,
-    val errorMessage: String? = null
-)

@@ -6,9 +6,9 @@
     "audioFile": "en.wav",
     "sampleRate": 16000,
     "durationSeconds": 7.15,
-    "transcript": "After early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels",
-    "referenceTranslationEn": "After early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels",
-    "referenceTranslationVi": "Sau khi màn đêm buông xuống những ngọn đèn vàng sẽ sáng lên đây đó trong khu nhà thổ tồi tàn"
+    "transcript": "The tribal chief then called for the boy and presented him with fifty pieces of gold.",
+    "referenceTranslationEn": "The tribal chief then called for the boy and presented him with fifty pieces of gold.",
+    "referenceTranslationVi": "Tù trưởng bộ lạc sau đó gọi cậu bé lại và tặng cậu năm mươi đồng tiền vàng."
   },
   {
     "id": "ja",
@@ -17,9 +17,9 @@
     "audioFile": "ja.wav",
     "sampleRate": 16000,
     "durationSeconds": 7.20,
-    "transcript": "こんにちは、田中です。本日は音声認識とリアルタイム翻訳のテストを行っています。",
-    "referenceTranslationEn": "Hello, I am Tanaka. Today we are conducting tests of speech recognition and real-time translation.",
-    "referenceTranslationVi": "Xin chào, tôi là Tanaka. Hôm nay chúng tôi đang tiến hành thử nghiệm nhận dạng giọng nói và dịch thời gian thực."
+    "transcript": "うちの中学は弁当制で、持っていない場合は50円の学校指定のパンを買う。",
+    "referenceTranslationEn": "Our middle school has a lunchbox system, and if you don't have one, you buy 50-yen school-designated bread.",
+    "referenceTranslationVi": "Trường cấp hai của chúng tôi theo chế độ mang cơm hộp, nếu không có thì mua bánh mì 50 yên do trường quy định."
   },
   {
     "id": "ja_1",
@@ -50,9 +50,9 @@
     "audioFile": "ko.wav",
     "sampleRate": 16000,
     "durationSeconds": 4.61,
-    "transcript": "안녕하세요, 실시간 음성 번역 및 자막 성능 테스트를 진행합니다.",
-    "referenceTranslationEn": "Hello, we are conducting a real-time speech translation and subtitle performance test.",
-    "referenceTranslationVi": "Xin chào, chúng tôi đang tiến hành kiểm tra hiệu suất dịch giọng nói và phụ đề thời gian thực."
+    "transcript": "조금만 생각을 하면서 살면 훨씬 편할 거야.",
+    "referenceTranslationEn": "If you live while thinking just a little bit, it will be much more comfortable.",
+    "referenceTranslationVi": "Nếu bạn suy nghĩ một chút khi sống thì sẽ thoải mái hơn nhiều."
   },
   {
     "id": "ko_0",
