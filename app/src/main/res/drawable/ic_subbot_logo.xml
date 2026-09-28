@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Outer Neon Glow Halo -->
+    <path
+        android:pathData="M 13,5 H 35 A 8,8 0 0 1 43,13 V 27 A 8,8 0 0 1 35,35 H 17 C 13,37 9,41 6,42 C 7,38 6,32 5,27 V 13 A 8,8 0 0 1 13,5 Z"
+        android:strokeWidth="4.5"
+        android:strokeAlpha="0.25"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="5"
+                android:startY="5"
+                android:endX="43"
+                android:endY="42">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#9D4EDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speech Bubble Body: Contrast Base -->
+    <path
+        android:pathData="M 13,5 H 35 A 8,8 0 0 1 43,13 V 27 A 8,8 0 0 1 35,35 H 17 C 13,37 9,41 6,42 C 7,38 6,32 5,27 V 13 A 8,8 0 0 1 13,5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="5"
+                android:startY="5"
+                android:endX="43"
+                android:endY="42">
+                <item android:offset="0.0" android:color="#F2101626" />
+                <item android:offset="1.0" android:color="#F21A233A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speech Bubble Rim: Radiant Neon Gradient -->
+    <path
+        android:pathData="M 13,5 H 35 A 8,8 0 0 1 43,13 V 27 A 8,8 0 0 1 35,35 H 17 C 13,37 9,41 6,42 C 7,38 6,32 5,27 V 13 A 8,8 0 0 1 13,5 Z"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="5"
+                android:startY="5"
+                android:endX="43"
+                android:endY="42">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="0.5" android:color="#6A5ACD" />
+                <item android:offset="1.0" android:color="#9D4EDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Audio Waveform Bars (5 vertical bars) -->
+    <!-- Bar 1: Outer Left -->
+    <path
+        android:pathData="M 14,18 V 22"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00B4D8"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 2: Mid Left -->
+    <path
+        android:pathData="M 19,15 V 25"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 3: Center Peak (Speech Focus) -->
+    <path
+        android:pathData="M 24,13 V 27"
+        android:strokeWidth="2.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 4: Mid Right -->
+    <path
+        android:pathData="M 29,15 V 25"
+        android:strokeWidth="2.2"
+        android:strokeColor="#7928CA"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 5: Outer Right -->
+    <path
+        android:pathData="M 34,18 V 22"
+        android:strokeWidth="2.2"
+        android:strokeColor="#9D4EDD"
+        android:strokeLineCap="round" />
+
+    <!-- Subtitle Line 1: Live Transcription (Neon Cyan) -->
+    <path
+        android:pathData="M 13.5,30 H 34.5"
+        android:strokeWidth="2.0"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round" />
+
+    <!-- Subtitle Line 2: Bilingual Target (Electric Purple) -->
+    <path
+        android:pathData="M 17,33.5 H 31"
+        android:strokeWidth="2.0"
+        android:strokeColor="#C77DFF"
+        android:strokeLineCap="round" />
+
+    <!-- AI Sparkle Glint (Top-Right Accent) -->
+    <path
+        android:pathData="M 38,5.5 Q 38,7.5 40,7.5 Q 38,7.5 38,9.5 Q 38,7.5 36,7.5 Q 38,7.5 38,5.5 Z"
+        android:fillColor="#00E5FF" />
+    <path
+        android:pathData="M 38,6.7 Q 38,7.5 38.8,7.5 Q 38,7.5 38,8.3 Q 38,7.5 37.2,7.5 Q 38,7.5 38,6.7 Z"
+        android:fillColor="#FFFFFF" />
+
+</vector>

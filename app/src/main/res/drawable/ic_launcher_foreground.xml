@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Neon Glow / Bloom Halo around Speech Bubble -->
+    <path
+        android:pathData="M 40,27 H 68 A 12,12 0 0 1 80,39 V 55 A 12,12 0 0 1 68,67 H 44 C 37,70 31,74.5 29,76 C 30.5,70 29.5,63 28,55 V 39 A 12,12 0 0 1 40,27 Z"
+        android:strokeWidth="6.5"
+        android:strokeAlpha="0.22"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="28"
+                android:startY="27"
+                android:endX="80"
+                android:endY="76">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="0.5" android:color="#7928CA" />
+                <item android:offset="1.0" android:color="#9D4EDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speech Bubble Body: Dark Translucent Glass Fill -->
+    <path
+        android:pathData="M 40,27 H 68 A 12,12 0 0 1 80,39 V 55 A 12,12 0 0 1 68,67 H 44 C 37,70 31,74.5 29,76 C 30.5,70 29.5,63 28,55 V 39 A 12,12 0 0 1 40,27 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="28"
+                android:startY="27"
+                android:endX="80"
+                android:endY="76">
+                <item android:offset="0.0" android:color="#F211182B" />
+                <item android:offset="1.0" android:color="#F218223B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speech Bubble Rim: Sharp Neon Gradient Border -->
+    <path
+        android:pathData="M 40,27 H 68 A 12,12 0 0 1 80,39 V 55 A 12,12 0 0 1 68,67 H 44 C 37,70 31,74.5 29,76 C 30.5,70 29.5,63 28,55 V 39 A 12,12 0 0 1 40,27 Z"
+        android:strokeWidth="2.8"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="28"
+                android:startY="27"
+                android:endX="80"
+                android:endY="76">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="0.45" android:color="#5B7FFF" />
+                <item android:offset="1.0" android:color="#9D4EDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Audio Waveform Bars (5 vertical bars) -->
+    <!-- Bar 1: Outer Left -->
+    <path
+        android:pathData="M 38,41 V 46"
+        android:strokeWidth="3.2"
+        android:strokeColor="#00B4D8"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 2: Mid Left -->
+    <path
+        android:pathData="M 46,37 V 50"
+        android:strokeWidth="3.2"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 3: Center Peak (Audio Focus) -->
+    <path
+        android:pathData="M 54,34 V 53"
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 4: Mid Right -->
+    <path
+        android:pathData="M 62,37 V 50"
+        android:strokeWidth="3.2"
+        android:strokeColor="#7928CA"
+        android:strokeLineCap="round" />
+
+    <!-- Bar 5: Outer Right -->
+    <path
+        android:pathData="M 70,41 V 46"
+        android:strokeWidth="3.2"
+        android:strokeColor="#9D4EDD"
+        android:strokeLineCap="round" />
+
+    <!-- Subtitle Line 1: Primary Translated Subtitle (Cyan) -->
+    <path
+        android:pathData="M 37,58 H 71"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="37"
+                android:startY="58"
+                android:endX="71"
+                android:endY="58">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#80F7FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Subtitle Line 2: Secondary / Bilingual Subtitle (Electric Purple) -->
+    <path
+        android:pathData="M 42,63.5 H 66"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="42"
+                android:startY="63.5"
+                android:endX="66"
+                android:endY="63.5">
+                <item android:offset="0.0" android:color="#C77DFF" />
+                <item android:offset="1.0" android:color="#9D4EDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Bot AI Intelligence Sparkle Glint (Top-Right Accent) -->
+    <path
+        android:pathData="M 74,25.5 Q 74,28.5 77,28.5 Q 74,28.5 74,31.5 Q 74,28.5 71,28.5 Q 74,28.5 74,25.5 Z"
+        android:fillColor="#00E5FF" />
+    <path
+        android:pathData="M 74,27.2 Q 74,28.5 75.3,28.5 Q 74,28.5 74,29.8 Q 74,28.5 72.7,28.5 Q 74,28.5 74,27.2 Z"
+        android:fillColor="#FFFFFF" />
+
+</vector>

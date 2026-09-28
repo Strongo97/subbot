@@ -90,4 +90,66 @@ class DashboardViewModelTest {
         viewModel.syncServiceState()
         assertFalse(viewModel.uiState.value.isServiceRunning)
     }
+
+    @Test
+    fun testSwapLanguages_swapsSourceAndTarget() = runTest {
+        val viewModel = DashboardViewModel()
+        org.junit.Assert.assertEquals("en", viewModel.uiState.value.sourceLanguage)
+        org.junit.Assert.assertEquals("vi", viewModel.uiState.value.targetLanguage)
+
+        viewModel.swapLanguages()
+        org.junit.Assert.assertEquals("vi", viewModel.uiState.value.sourceLanguage)
+        org.junit.Assert.assertEquals("en", viewModel.uiState.value.targetLanguage)
+
+        viewModel.swapLanguages()
+        org.junit.Assert.assertEquals("en", viewModel.uiState.value.sourceLanguage)
+        org.junit.Assert.assertEquals("vi", viewModel.uiState.value.targetLanguage)
+    }
+
+    @Test
+    fun testSetFontSize_updatesState() = runTest {
+        val viewModel = DashboardViewModel()
+        org.junit.Assert.assertEquals(com.subbot.ui.model.SubtitleFontSize.NORMAL, viewModel.uiState.value.fontSize)
+
+        viewModel.setFontSize(com.subbot.ui.model.SubtitleFontSize.LARGE)
+        org.junit.Assert.assertEquals(com.subbot.ui.model.SubtitleFontSize.LARGE, viewModel.uiState.value.fontSize)
+
+        viewModel.setFontSize(com.subbot.ui.model.SubtitleFontSize.EXTRA_LARGE)
+        org.junit.Assert.assertEquals(com.subbot.ui.model.SubtitleFontSize.EXTRA_LARGE, viewModel.uiState.value.fontSize)
+    }
+
+    @Test
+    fun testPosition_toggleAndSetUpdatesState() = runTest {
+        val viewModel = DashboardViewModel()
+        assertFalse(viewModel.uiState.value.isTopPosition)
+
+        viewModel.togglePosition()
+        assertTrue(viewModel.uiState.value.isTopPosition)
+
+        viewModel.setPosition(false)
+        assertFalse(viewModel.uiState.value.isTopPosition)
+
+        viewModel.setPosition(true)
+        assertTrue(viewModel.uiState.value.isTopPosition)
+    }
+
+    @Test
+    fun testSubtitleFontSize_fromName() {
+        org.junit.Assert.assertEquals(
+            com.subbot.ui.model.SubtitleFontSize.LARGE,
+            com.subbot.ui.model.SubtitleFontSize.fromName("LARGE")
+        )
+        org.junit.Assert.assertEquals(
+            com.subbot.ui.model.SubtitleFontSize.EXTRA_LARGE,
+            com.subbot.ui.model.SubtitleFontSize.fromName("extra_large")
+        )
+        org.junit.Assert.assertEquals(
+            com.subbot.ui.model.SubtitleFontSize.NORMAL,
+            com.subbot.ui.model.SubtitleFontSize.fromName("non_existent")
+        )
+        org.junit.Assert.assertEquals(
+            com.subbot.ui.model.SubtitleFontSize.NORMAL,
+            com.subbot.ui.model.SubtitleFontSize.fromName(null)
+        )
+    }
 }

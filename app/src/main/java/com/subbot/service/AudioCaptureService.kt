@@ -44,6 +44,8 @@ class AudioCaptureService : Service() {
         const val EXTRA_DECODER_PATH = "extra_decoder_path"
         const val EXTRA_TOKENS_PATH = "extra_tokens_path"
         const val EXTRA_IS_BILINGUAL = "extra_is_bilingual"
+        const val EXTRA_IS_TOP = "extra_is_top"
+        const val EXTRA_FONT_SIZE = "extra_font_size"
 
         // Global singleton access for overlay view to bind state
         var subtitleQueue: SubtitleQueue? = null
@@ -145,8 +147,12 @@ class AudioCaptureService : Service() {
                 }
             }, Handler(Looper.getMainLooper()))
 
-            val isTop = intent.getBooleanExtra("extra_is_top", false)
+            val isTop = intent.getBooleanExtra(EXTRA_IS_TOP, false)
+            val fontSizeName = intent.getStringExtra(EXTRA_FONT_SIZE)
+            val fontSize = com.subbot.ui.model.SubtitleFontSize.fromName(fontSizeName)
             subtitleQueue?.let { queue ->
+                queue.setFontSize(fontSize)
+                queue.setTopPosition(isTop)
                 overlayManager?.showOverlay(queue.uiState, isTop = isTop)
                 queue.postSubtitle("SubBot Active", "Listening for speech...")
             }

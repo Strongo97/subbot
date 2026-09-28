@@ -50,7 +50,9 @@ class SubtitleOverlayManager(private val context: Context) {
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setViewTreeViewModelStoreOwner(lifecycleOwner)
             setContent {
-                SubtitleOverlayView(uiStateFlow = uiStateFlow)
+                com.subbot.ui.theme.SubBotTheme {
+                    SubtitleOverlayView(uiStateFlow = uiStateFlow)
+                }
             }
         }
         composeView = view

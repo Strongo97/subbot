@@ -51,6 +51,27 @@ class SubtitleQueue(
     }
 
     /**
+     * Updates font size configuration.
+     */
+    fun setFontSize(fontSize: com.subbot.ui.model.SubtitleFontSize) {
+        _uiState.value = _uiState.value.copy(fontSize = fontSize)
+    }
+
+    /**
+     * Updates screen position preference.
+     */
+    fun setTopPosition(isTop: Boolean) {
+        _uiState.value = _uiState.value.copy(isTopPosition = isTop)
+    }
+
+    /**
+     * Updates audio listening indicator activity state.
+     */
+    fun setListening(isListening: Boolean) {
+        _uiState.value = _uiState.value.copy(isListening = isListening)
+    }
+
+    /**
      * Clears all subtitle text and immediately hides the overlay.
      */
     fun clear() {

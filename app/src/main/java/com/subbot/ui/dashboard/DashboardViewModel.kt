@@ -26,6 +26,7 @@ data class DashboardUiState(
     val targetLanguage: String = "vi",
     val isTopPosition: Boolean = false,
     val isBilingual: Boolean = false,
+    val fontSize: com.subbot.ui.model.SubtitleFontSize = com.subbot.ui.model.SubtitleFontSize.NORMAL,
     val isServiceRunning: Boolean = false,
     val isSourceModelDownloaded: Boolean = true,
     val isTargetModelDownloaded: Boolean = false,
@@ -191,12 +192,39 @@ class DashboardViewModel(
         checkTranslationModelsDownloaded()
     }
 
+    fun swapLanguages() {
+        val oldSource = _uiState.value.sourceLanguage
+        val oldTarget = _uiState.value.targetLanguage
+        _uiState.update {
+            it.copy(
+                sourceLanguage = oldTarget,
+                targetLanguage = oldSource
+            )
+        }
+        checkTranslationModelsDownloaded()
+        checkSpeechModel()
+    }
+
+    fun setFontSize(fontSize: com.subbot.ui.model.SubtitleFontSize) {
+        _uiState.update { it.copy(fontSize = fontSize) }
+        com.subbot.service.AudioCaptureService.subtitleQueue?.setFontSize(fontSize)
+    }
+
+    fun setPosition(isTop: Boolean) {
+        _uiState.update { it.copy(isTopPosition = isTop) }
+        com.subbot.service.AudioCaptureService.subtitleQueue?.setTopPosition(isTop)
+    }
+
     fun togglePosition() {
-        _uiState.update { it.copy(isTopPosition = !it.isTopPosition) }
+        val newPos = !_uiState.value.isTopPosition
+        _uiState.update { it.copy(isTopPosition = newPos) }
+        com.subbot.service.AudioCaptureService.subtitleQueue?.setTopPosition(newPos)
     }
 
     fun toggleBilingual() {
-        _uiState.update { it.copy(isBilingual = !it.isBilingual) }
+        val newBilingual = !_uiState.value.isBilingual
+        _uiState.update { it.copy(isBilingual = newBilingual) }
+        com.subbot.service.AudioCaptureService.subtitleQueue?.setBilingual(newBilingual)
     }
 
     fun setServiceRunning(running: Boolean) {

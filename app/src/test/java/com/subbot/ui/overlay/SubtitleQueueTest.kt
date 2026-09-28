@@ -44,4 +44,31 @@ class SubtitleQueueTest {
         queue.setBilingual(true)
         assertTrue(queue.uiState.value.isBilingual)
     }
+
+    @Test
+    fun testSetFontSize_updatesState() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        assertEquals(com.subbot.ui.model.SubtitleFontSize.NORMAL, queue.uiState.value.fontSize)
+
+        queue.setFontSize(com.subbot.ui.model.SubtitleFontSize.EXTRA_LARGE)
+        assertEquals(com.subbot.ui.model.SubtitleFontSize.EXTRA_LARGE, queue.uiState.value.fontSize)
+    }
+
+    @Test
+    fun testSetTopPosition_updatesState() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        assertFalse(queue.uiState.value.isTopPosition)
+
+        queue.setTopPosition(true)
+        assertTrue(queue.uiState.value.isTopPosition)
+    }
+
+    @Test
+    fun testSetListening_updatesState() = runTest {
+        val queue = SubtitleQueue(scope = this, autoFadeTimeoutMs = 1000L)
+        assertTrue(queue.uiState.value.isListening)
+
+        queue.setListening(false)
+        assertFalse(queue.uiState.value.isListening)
+    }
 }

@@ -49,7 +49,8 @@ class MainActivity : ComponentActivity() {
                 putExtra(AudioCaptureService.EXTRA_SOURCE_LANG, state.sourceLanguage)
                 putExtra(AudioCaptureService.EXTRA_TARGET_LANG, state.targetLanguage)
                 putExtra(AudioCaptureService.EXTRA_IS_BILINGUAL, state.isBilingual)
-                putExtra("extra_is_top", state.isTopPosition)
+                putExtra(AudioCaptureService.EXTRA_IS_TOP, state.isTopPosition)
+                putExtra(AudioCaptureService.EXTRA_FONT_SIZE, state.fontSize.name)
                 putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, encoderFile.absolutePath)
                 putExtra(AudioCaptureService.EXTRA_DECODER_PATH, decoderFile.absolutePath)
                 putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, tokensFile.absolutePath)
@@ -63,20 +64,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            DashboardScreen(
-                viewModel = viewModel,
-                onRequestOverlayPermission = { requestOverlayPermission() },
-                onRequestAudioPermission = {
-                    recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                onRequestNotificationPermission = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                },
-                onStartService = { startProjectionService() },
-                onStopService = { stopProjectionService() }
-            )
+            com.subbot.ui.theme.SubBotTheme {
+                DashboardScreen(
+                    viewModel = viewModel,
+                    onRequestOverlayPermission = { requestOverlayPermission() },
+                    onRequestAudioPermission = {
+                        recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onRequestNotificationPermission = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                    onStartService = { startProjectionService() },
+                    onStopService = { stopProjectionService() }
+                )
+            }
         }
     }
 
