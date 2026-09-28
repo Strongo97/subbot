@@ -150,8 +150,13 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        val speechLabel = if (state.isSpeechModelDownloaded) {
+                            "Speech Model (${state.sourceLanguage.uppercase()}): Ready ✓"
+                        } else {
+                            if (state.sourceLanguage != "en") "Multilingual Model: Needed" else "Speech Model: Not Downloaded"
+                        }
                         Text(
-                            text = if (state.isSpeechModelDownloaded) "Speech Model: Ready ✓" else "Speech Model: Not Downloaded",
+                            text = speechLabel,
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (state.isSpeechModelDownloaded) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -165,7 +170,7 @@ fun DashboardScreen(
                                 }
                             } else {
                                 OutlinedButton(onClick = { viewModel.downloadSpeechModel() }) {
-                                    Text("Download (~74MB)")
+                                    Text("Download (~104MB)")
                                 }
                             }
                         }
@@ -179,18 +184,24 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        val translationLabel = if (state.areTranslationModelsDownloaded) {
+                            "Translation (${state.sourceLanguage.uppercase()}→${state.targetLanguage.uppercase()}): Ready ✓"
+                        } else {
+                            "Translation Model: Not Downloaded"
+                        }
                         Text(
-                            text = if (state.isTargetModelDownloaded) "Translation Model: Ready ✓" else "Translation Model: Not Downloaded",
+                            text = translationLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (state.isTargetModelDownloaded) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (state.areTranslationModelsDownloaded) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        if (!state.isTargetModelDownloaded) {
+                        if (!state.areTranslationModelsDownloaded) {
                             if (state.isDownloadingModel) {
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             } else {
-                                OutlinedButton(onClick = { viewModel.downloadTargetModel() }) {
-                                    Text("Download (~30MB)")
+                                OutlinedButton(onClick = { viewModel.downloadTranslationModels() }) {
+                                    val sizeEst = if (state.sourceLanguage != "en" && !state.isSourceModelDownloaded) "~60MB" else "~30MB"
+                                    Text("Download ($sizeEst)")
                                 }
                             }
                         }

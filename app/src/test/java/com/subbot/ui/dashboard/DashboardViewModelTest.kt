@@ -56,14 +56,25 @@ class DashboardViewModelTest {
         )
         assertFalse("Service must not be ready to start if speech model is missing", stateWithoutSpeechModel.isReadyToStart)
 
+        // Source translation model missing (e.g. Japanese -> Vietnamese)
+        val stateWithoutSourceModel = DashboardUiState(
+            isOverlayPermissionGranted = true,
+            isAudioPermissionGranted = true,
+            isSourceModelDownloaded = false,
+            isTargetModelDownloaded = true,
+            isSpeechModelDownloaded = true
+        )
+        assertFalse("Service must not be ready to start if source translation model is missing", stateWithoutSourceModel.isReadyToStart)
+
         // All ready
         val stateReady = DashboardUiState(
             isOverlayPermissionGranted = true,
             isAudioPermissionGranted = true,
+            isSourceModelDownloaded = true,
             isTargetModelDownloaded = true,
             isSpeechModelDownloaded = true
         )
-        assertTrue("Service should be ready when permissions and both models are ready", stateReady.isReadyToStart)
+        assertTrue("Service should be ready when permissions and all models are ready", stateReady.isReadyToStart)
     }
 
     @Test

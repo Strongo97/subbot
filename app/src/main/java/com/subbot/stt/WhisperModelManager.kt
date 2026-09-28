@@ -18,26 +18,75 @@ sealed class ModelDownloadState {
 
 /**
  * Manages downloading and validating the Sherpa-ONNX Whisper speech recognition model files.
+ * Supports both multilingual (Japanese, English, etc.) and English-only models.
  */
 class WhisperModelManager(val targetDir: File) {
 
     companion object {
-        const val BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main"
-        val REQUIRED_FILES = listOf(
+        // Multilingual Whisper Tiny model (supports 99 languages including Japanese, English, Vietnamese, etc.)
+        const val MULTILINGUAL_BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main"
+        val MULTILINGUAL_FILES = listOf(
+            "tiny-tokens.txt",
+            "tiny-encoder.int8.onnx",
+            "tiny-decoder.int8.onnx"
+        )
+
+        // English-only Whisper Tiny model
+        const val ENGLISH_BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main"
+        val ENGLISH_FILES = listOf(
             "tiny.en-tokens.txt",
             "tiny.en-encoder.int8.onnx",
             "tiny.en-decoder.int8.onnx"
         )
     }
 
-    val encoderFile: File get() = File(targetDir, "tiny.en-encoder.int8.onnx")
-    val decoderFile: File get() = File(targetDir, "tiny.en-decoder.int8.onnx")
-    val tokensFile: File get() = File(targetDir, "tiny.en-tokens.txt")
+    // Multilingual model files
+    val multilingualEncoder: File get() = File(targetDir, "tiny-encoder.int8.onnx")
+    val multilingualDecoder: File get() = File(targetDir, "tiny-decoder.int8.onnx")
+    val multilingualTokens: File get() = File(targetDir, "tiny-tokens.txt")
 
-    fun isModelAvailable(): Boolean {
-        return encoderFile.exists() && encoderFile.length() > 1000 &&
-                decoderFile.exists() && decoderFile.length() > 1000 &&
-                tokensFile.exists() && tokensFile.length() > 1000
+    // English-only model files
+    val englishEncoder: File get() = File(targetDir, "tiny.en-encoder.int8.onnx")
+    val englishDecoder: File get() = File(targetDir, "tiny.en-decoder.int8.onnx")
+    val englishTokens: File get() = File(targetDir, "tiny.en-tokens.txt")
+
+    fun hasMultilingualModel(): Boolean {
+        return multilingualEncoder.exists() && multilingualEncoder.length() > 1000 &&
+                multilingualDecoder.exists() && multilingualDecoder.length() > 1000 &&
+                multilingualTokens.exists() && multilingualTokens.length() > 1000
+    }
+
+    fun hasEnglishOnlyModel(): Boolean {
+        return englishEncoder.exists() && englishEncoder.length() > 1000 &&
+                englishDecoder.exists() && englishDecoder.length() > 1000 &&
+                englishTokens.exists() && englishTokens.length() > 1000
+    }
+
+    /**
+     * Checks if a suitable model is available for the given language.
+     * English can use either multilingual or English-only model.
+     * Japanese (and other non-English languages) require the multilingual model.
+     */
+    fun isModelAvailable(langCode: String = "en"): Boolean {
+        return if (langCode.equals("en", ignoreCase = true)) {
+            hasMultilingualModel() || hasEnglishOnlyModel()
+        } else {
+            hasMultilingualModel()
+        }
+    }
+
+    /**
+     * Returns the encoder, decoder, and tokens files for the given language.
+     */
+    fun getModelFiles(langCode: String = "en"): Triple<File, File, File> {
+        return if (hasMultilingualModel()) {
+            Triple(multilingualEncoder, multilingualDecoder, multilingualTokens)
+        } else if (langCode.equals("en", ignoreCase = true) && hasEnglishOnlyModel()) {
+            Triple(englishEncoder, englishDecoder, englishTokens)
+        } else {
+            // Default to multilingual paths
+            Triple(multilingualEncoder, multilingualDecoder, multilingualTokens)
+        }
     }
 
     private fun openConnectionWithRedirects(initialUrl: String): HttpURLConnection {
@@ -63,22 +112,27 @@ class WhisperModelManager(val targetDir: File) {
         throw IOException("Too many HTTP redirects when downloading model")
     }
 
+    /**
+     * Downloads the multilingual Whisper model to support all languages (including Japanese and English).
+     */
     fun downloadModel(): Flow<ModelDownloadState> = flow {
         if (!targetDir.exists()) {
             targetDir.mkdirs()
         }
 
-        for ((index, fileName) in REQUIRED_FILES.withIndex()) {
+        val filesToDownload = MULTILINGUAL_FILES
+
+        for ((index, fileName) in filesToDownload.withIndex()) {
             val destFile = File(targetDir, fileName)
             // If valid file already exists, skip
             if (destFile.exists() && destFile.length() > 1000) {
-                val progress = ((index + 1) * 100) / REQUIRED_FILES.size
+                val progress = ((index + 1) * 100) / filesToDownload.size
                 emit(ModelDownloadState.Progress(progress, fileName))
                 continue
             }
 
             val tempFile = File(targetDir, "$fileName.tmp")
-            val fileUrl = "$BASE_URL/$fileName"
+            val fileUrl = "$MULTILINGUAL_BASE_URL/$fileName"
 
             try {
                 val conn = openConnectionWithRedirects(fileUrl)
@@ -99,7 +153,7 @@ class WhisperModelManager(val targetDir: File) {
                             downloadedBytes += read
                             if (totalBytes > 0) {
                                 val fileProgress = (downloadedBytes * 100) / totalBytes
-                                val overallProgress = ((index * 100) + fileProgress) / REQUIRED_FILES.size
+                                val overallProgress = ((index * 100) + fileProgress) / filesToDownload.size
                                 emit(ModelDownloadState.Progress(overallProgress.toInt(), fileName))
                             }
                         }

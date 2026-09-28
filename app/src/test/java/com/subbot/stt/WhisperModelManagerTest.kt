@@ -1,6 +1,7 @@
 package com.subbot.stt
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -16,12 +17,13 @@ class WhisperModelManagerTest {
     fun testIsModelAvailable_returnsFalseWhenFilesMissing() {
         val dir = tempFolder.newFolder("whisper-empty")
         val manager = WhisperModelManager(dir)
-        assertFalse(manager.isModelAvailable())
+        assertFalse(manager.isModelAvailable("en"))
+        assertFalse(manager.isModelAvailable("ja"))
     }
 
     @Test
-    fun testIsModelAvailable_returnsTrueWhenAllFilesExist() {
-        val dir = tempFolder.newFolder("whisper-complete")
+    fun testIsModelAvailable_englishOnlyModelWorksForEnglishButNotJapanese() {
+        val dir = tempFolder.newFolder("whisper-english-only")
         val manager = WhisperModelManager(dir)
 
         val dummyData = ByteArray(2000) { 1 }
@@ -29,19 +31,28 @@ class WhisperModelManagerTest {
         File(dir, "tiny.en-decoder.int8.onnx").writeBytes(dummyData)
         File(dir, "tiny.en-tokens.txt").writeBytes(dummyData)
 
-        assertTrue(manager.isModelAvailable())
+        assertTrue("English model should be available for English", manager.isModelAvailable("en"))
+        assertFalse("English model cannot be used for Japanese", manager.isModelAvailable("ja"))
+
+        val modelFiles = manager.getModelFiles("en")
+        assertEquals("tiny.en-encoder.int8.onnx", modelFiles.first.name)
     }
 
     @Test
-    fun testIsModelAvailable_returnsFalseWhenFileIsTooSmallOrCorrupted() {
-        val dir = tempFolder.newFolder("whisper-partial")
+    fun testIsModelAvailable_multilingualModelWorksForBothEnglishAndJapanese() {
+        val dir = tempFolder.newFolder("whisper-multilingual")
         val manager = WhisperModelManager(dir)
 
-        File(dir, "tiny.en-encoder.int8.onnx").writeBytes(ByteArray(2000) { 1 })
-        File(dir, "tiny.en-decoder.int8.onnx").writeBytes(ByteArray(10) { 1 }) // Too small
-        File(dir, "tiny.en-tokens.txt").writeBytes(ByteArray(2000) { 1 })
+        val dummyData = ByteArray(2000) { 1 }
+        File(dir, "tiny-encoder.int8.onnx").writeBytes(dummyData)
+        File(dir, "tiny-decoder.int8.onnx").writeBytes(dummyData)
+        File(dir, "tiny-tokens.txt").writeBytes(dummyData)
 
-        assertFalse(manager.isModelAvailable())
+        assertTrue("Multilingual model should work for English", manager.isModelAvailable("en"))
+        assertTrue("Multilingual model should work for Japanese", manager.isModelAvailable("ja"))
+
+        val modelFiles = manager.getModelFiles("ja")
+        assertEquals("tiny-encoder.int8.onnx", modelFiles.first.name)
     }
 
     @Test
@@ -49,11 +60,11 @@ class WhisperModelManagerTest {
         val dir = tempFolder.newFolder("whisper-flow-test")
         val manager = WhisperModelManager(dir)
 
-        // Seed files so it doesn't make real network calls in unit test
+        // Seed multilingual files so it doesn't make real network calls in unit test
         val dummyData = ByteArray(2000) { 1 }
-        File(dir, "tiny.en-encoder.int8.onnx").writeBytes(dummyData)
-        File(dir, "tiny.en-decoder.int8.onnx").writeBytes(dummyData)
-        File(dir, "tiny.en-tokens.txt").writeBytes(dummyData)
+        File(dir, "tiny-encoder.int8.onnx").writeBytes(dummyData)
+        File(dir, "tiny-decoder.int8.onnx").writeBytes(dummyData)
+        File(dir, "tiny-tokens.txt").writeBytes(dummyData)
 
         val states = mutableListOf<ModelDownloadState>()
         manager.downloadModel().collect { state ->

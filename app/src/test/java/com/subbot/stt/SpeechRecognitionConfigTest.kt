@@ -24,4 +24,13 @@ class SpeechRecognitionConfigTest {
         )
         assertFalse(invalidConfig.isValid())
     }
+
+    @Test
+    fun testCleanUtterance_stripsEllipsesAndArtifacts() {
+        org.junit.Assert.assertEquals("hello world", SpeechRecognitionEngine.cleanUtterance("...hello world..."))
+        org.junit.Assert.assertEquals("hello world", SpeechRecognitionEngine.cleanUtterance("…hello world…"))
+        org.junit.Assert.assertEquals("", SpeechRecognitionEngine.cleanUtterance("..."))
+        org.junit.Assert.assertEquals("thank you", SpeechRecognitionEngine.cleanUtterance("[BLANK_AUDIO] thank you"))
+        org.junit.Assert.assertEquals("Today is great", SpeechRecognitionEngine.cleanUtterance("--- Today is great ---"))
+    }
 }

@@ -39,7 +39,9 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val state = viewModel.uiState.value
-            val modelDir = java.io.File(filesDir, "models/whisper-tiny")
+            val whisperManager = com.subbot.stt.WhisperModelManager(java.io.File(filesDir, "models/whisper-tiny"))
+            val (encoderFile, decoderFile, tokensFile) = whisperManager.getModelFiles(state.sourceLanguage)
+
             val serviceIntent = Intent(this, AudioCaptureService::class.java).apply {
                 action = AudioCaptureService.ACTION_START
                 putExtra(AudioCaptureService.EXTRA_RESULT_CODE, result.resultCode)
@@ -48,9 +50,9 @@ class MainActivity : ComponentActivity() {
                 putExtra(AudioCaptureService.EXTRA_TARGET_LANG, state.targetLanguage)
                 putExtra(AudioCaptureService.EXTRA_IS_BILINGUAL, state.isBilingual)
                 putExtra("extra_is_top", state.isTopPosition)
-                putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, java.io.File(modelDir, "tiny.en-encoder.int8.onnx").absolutePath)
-                putExtra(AudioCaptureService.EXTRA_DECODER_PATH, java.io.File(modelDir, "tiny.en-decoder.int8.onnx").absolutePath)
-                putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, java.io.File(modelDir, "tiny.en-tokens.txt").absolutePath)
+                putExtra(AudioCaptureService.EXTRA_ENCODER_PATH, encoderFile.absolutePath)
+                putExtra(AudioCaptureService.EXTRA_DECODER_PATH, decoderFile.absolutePath)
+                putExtra(AudioCaptureService.EXTRA_TOKENS_PATH, tokensFile.absolutePath)
             }
             ContextCompat.startForegroundService(this, serviceIntent)
             viewModel.setServiceRunning(true)

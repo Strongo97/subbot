@@ -27,6 +27,7 @@ data class DashboardUiState(
     val isTopPosition: Boolean = false,
     val isBilingual: Boolean = false,
     val isServiceRunning: Boolean = false,
+    val isSourceModelDownloaded: Boolean = true,
     val isTargetModelDownloaded: Boolean = false,
     val isDownloadingModel: Boolean = false,
     val isSpeechModelDownloaded: Boolean = false,
@@ -38,8 +39,11 @@ data class DashboardUiState(
     val areCorePermissionsGranted: Boolean
         get() = isOverlayPermissionGranted && isAudioPermissionGranted
 
+    val areTranslationModelsDownloaded: Boolean
+        get() = isSourceModelDownloaded && isTargetModelDownloaded
+
     val isReadyToStart: Boolean
-        get() = areCorePermissionsGranted && isTargetModelDownloaded && isSpeechModelDownloaded
+        get() = areCorePermissionsGranted && areTranslationModelsDownloaded && isSpeechModelDownloaded
 }
 
 class DashboardViewModel(
@@ -118,7 +122,8 @@ class DashboardViewModel(
     }
 
     fun checkSpeechModel() {
-        val available = modelManager?.isModelAvailable() ?: false
+        val lang = _uiState.value.sourceLanguage
+        val available = modelManager?.isModelAvailable(lang) ?: false
         _uiState.update { it.copy(isSpeechModelDownloaded = available) }
     }
 
@@ -177,11 +182,13 @@ class DashboardViewModel(
 
     fun setSourceLanguage(code: String) {
         _uiState.update { it.copy(sourceLanguage = code) }
+        checkTranslationModelsDownloaded()
+        checkSpeechModel()
     }
 
     fun setTargetLanguage(code: String) {
         _uiState.update { it.copy(targetLanguage = code) }
-        checkTargetModelDownloaded()
+        checkTranslationModelsDownloaded()
     }
 
     fun togglePosition() {
@@ -197,11 +204,22 @@ class DashboardViewModel(
     }
 
     fun checkTargetModelDownloaded() {
+        checkTranslationModelsDownloaded()
+    }
+
+    fun checkTranslationModelsDownloaded() {
         viewModelScope.launch {
             try {
+                val source = _uiState.value.sourceLanguage
                 val target = _uiState.value.targetLanguage
-                val isDownloaded = engine.isModelDownloaded(target)
-                _uiState.update { it.copy(isTargetModelDownloaded = isDownloaded) }
+                val sourceDownloaded = if (source.equals("en", ignoreCase = true)) true else engine.isModelDownloaded(source)
+                val targetDownloaded = engine.isModelDownloaded(target)
+                _uiState.update {
+                    it.copy(
+                        isSourceModelDownloaded = sourceDownloaded,
+                        isTargetModelDownloaded = targetDownloaded
+                    )
+                }
             } catch (e: Throwable) {
                 // Non-Android unit test environment fallback
             }
@@ -209,35 +227,56 @@ class DashboardViewModel(
     }
 
     fun downloadTargetModel() {
+        downloadTranslationModels()
+    }
+
+    fun downloadTranslationModels() {
+        val source = _uiState.value.sourceLanguage
         val target = _uiState.value.targetLanguage
         viewModelScope.launch {
             try {
-                engine.downloadModel(target).collect { status ->
-                    when (status) {
-                        is DownloadStatus.Downloading -> {
-                            _uiState.update {
-                                it.copy(isDownloadingModel = true, statusMessage = "Downloading offline model...")
+                val missing = mutableListOf<String>()
+                if (!source.equals("en", ignoreCase = true) && !_uiState.value.isSourceModelDownloaded) {
+                    missing.add(source)
+                }
+                if (!_uiState.value.isTargetModelDownloaded) {
+                    missing.add(target)
+                }
+
+                if (missing.isEmpty()) {
+                    checkTranslationModelsDownloaded()
+                    return@launch
+                }
+
+                _uiState.update { it.copy(isDownloadingModel = true, statusMessage = "Downloading translation models...") }
+
+                for (lang in missing) {
+                    engine.downloadModel(lang).collect { status ->
+                        when (status) {
+                            is DownloadStatus.Downloading -> {
+                                _uiState.update {
+                                    it.copy(isDownloadingModel = true, statusMessage = "Downloading $lang model...")
+                                }
                             }
-                        }
-                        is DownloadStatus.Completed -> {
-                            _uiState.update {
-                                it.copy(
-                                    isDownloadingModel = false,
-                                    isTargetModelDownloaded = true,
-                                    statusMessage = "Model downloaded successfully!"
-                                )
+                            is DownloadStatus.Completed -> {}
+                            is DownloadStatus.Failed -> {
+                                _uiState.update {
+                                    it.copy(
+                                        isDownloadingModel = false,
+                                        statusMessage = "Failed to download $lang model: ${status.error.localizedMessage}"
+                                    )
+                                }
                             }
+                            else -> {}
                         }
-                        is DownloadStatus.Failed -> {
-                            _uiState.update {
-                                it.copy(
-                                    isDownloadingModel = false,
-                                    statusMessage = "Download failed: ${status.error.localizedMessage}"
-                                )
-                            }
-                        }
-                        else -> {}
                     }
+                }
+                checkTranslationModelsDownloaded()
+                _uiState.update {
+                    it.copy(
+                        isDownloadingModel = false,
+                        statusMessage = "Translation models ready!"
+                    )
                 }
             } catch (e: Throwable) {
                 _uiState.update {
